@@ -53,7 +53,7 @@ Estrutura-base de um serviço (convenção; os nomes finais seguem a stack escol
 ## Pontos em aberto (viram ADRs próprios)
 
 - ~~**Fronteiras dos serviços**~~ — resolvido no [ADR-0002](0002-fronteiras-dos-servicos.md).
-- **Forma de comunicação** entre serviços (síncrona REST, eventos ou mistura) e se haverá API Gateway/BFF.
+- ~~**Forma de comunicação** entre serviços e API Gateway/BFF~~ — resolvido no [ADR-0003](0003-comunicacao-entre-servicos.md).
 - **Dados:** banco por serviço ou compartilhado na demonstração.
 - **Reserva de estoque**, **retorno do gateway** e **autenticação** (já listados no README), agora no contexto de serviços distribuídos.
 - **Stack** (linguagem e framework) e como o diagrama C4 representa portas e adaptadores no nível de Componentes.
