@@ -25,7 +25,7 @@ Loja virtual com catálogo, carrinho, pedidos e controle de estoque, com integra
 
 **Fora de escopo:** avaliações, recomendações, cupons, cálculo de frete real, devoluções e chat.
 
-**Estilo arquitetural:** **[A DEFINIR]** (opções do domínio: Hexagonal, SOA, Clean Architecture).
+**Estilo arquitetural:** SOA, com cada serviço desenhado em Clean Architecture + Arquitetura Hexagonal ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
 
 ## Atores
 
@@ -36,6 +36,12 @@ Loja virtual com catálogo, carrinho, pedidos e controle de estoque, com integra
 | Administrador | Primário | Gerencia catálogo e estoque |
 | Gateway de Pagamento | Externo (simulado) | Autoriza ou recusa pagamentos |
 | Serviço de Notificação | Externo (simulado) | Envia e-mail ou push ao cliente |
+
+### Diagrama de casos de uso
+
+![Diagrama de casos de uso da Loja Virtual](docs/use-cases/casos-de-uso1.png)
+
+O Cliente herda de Visitante, então também busca produtos e vê detalhes (RF01, RF02). Fonte em Mermaid: [casos-de-uso.md](docs/use-cases/casos-de-uso.md).
 
 ## Requisitos funcionais
 
@@ -109,10 +115,12 @@ RF01 a RF10 formam o mínimo viável. Para a apresentação, será implementado 
 
 Cada decisão deve virar um ADR em `docs/adr/`.
 
-1. **Estilo arquitetural [A DEFINIR]:** Hexagonal, SOA ou Clean Architecture. RNF01 e RNF02 favorecem Hexagonal/Clean. SOA exigiria separar serviços (catálogo, pedidos, estoque, pagamento), aumentando o esforço de implementação.
-2. **Reserva de estoque [A DEFINIR]:** na criação do pedido ou após o pagamento (RF05/RF06). É a decisão com maior impacto no desenho.
-3. **Retorno do gateway [A DEFINIR]:** síncrono ou por evento (RF06).
-4. **Autenticação [A DEFINIR]:** própria ou delegada (RF03).
+1. **Estilo arquitetural: DECIDIDO** — SOA, com Clean + Hexagonal em cada serviço ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
+2. **Fronteiras dos serviços: DECIDIDO** — Catálogo, Estoque, Pedidos (inclui carrinho), Pagamento, Notificação e Identidade no C4; a demonstração implementa Pedidos, Estoque, Pagamento, Notificação e um Catálogo mínimo ([ADR-0002](docs/adr/0002-fronteiras-dos-servicos.md)).
+3. **Comunicação entre serviços [A DEFINIR]:** síncrona (REST), eventos ou mistura; API Gateway/BFF.
+4. **Reserva de estoque [A DEFINIR]:** na criação do pedido ou após o pagamento (RF05/RF06). É a decisão com maior impacto no desenho, agora também por envolver consistência entre serviços.
+5. **Retorno do gateway [A DEFINIR]:** síncrono ou por evento (RF06).
+6. **Autenticação [A DEFINIR]:** própria ou delegada (RF03).
 
 ## Estrutura do repositório
 
