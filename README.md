@@ -39,7 +39,7 @@ Loja virtual com catálogo, carrinho, pedidos e controle de estoque, com integra
 
 ### Diagrama de casos de uso
 
-![Diagrama de casos de uso da Loja Virtual](docs/use-cases/casos-de-uso1.png)
+![Diagrama de casos de uso da Loja Virtual](docs/use-cases/casos-de-uso2.png)
 
 O Cliente herda de Visitante, então também busca produtos e vê detalhes (RF01, RF02). Fonte em Mermaid: [casos-de-uso.md](docs/use-cases/casos-de-uso.md).
 
@@ -117,7 +117,7 @@ Cada decisão deve virar um ADR em `docs/adr/`.
 
 1. **Estilo arquitetural: DECIDIDO** — SOA, com Clean + Hexagonal em cada serviço ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
 2. **Fronteiras dos serviços: DECIDIDO** — Catálogo, Estoque, Pedidos (inclui carrinho), Pagamento, Notificação e Identidade no C4; a demonstração implementa Pedidos, Estoque, Pagamento, Notificação e um Catálogo mínimo ([ADR-0002](docs/adr/0002-fronteiras-dos-servicos.md)).
-3. **Comunicação entre serviços [A DEFINIR]:** síncrona (REST), eventos ou mistura; API Gateway/BFF.
+3. **Comunicação entre serviços: DECIDIDO** — REST síncrono para comandos com resposta imediata e eventos para resultado de pagamento e notificações; API Gateway único como ponto de entrada ([ADR-0003](docs/adr/0003-comunicacao-entre-servicos.md)).
 4. **Reserva de estoque [A DEFINIR]:** na criação do pedido ou após o pagamento (RF05/RF06). É a decisão com maior impacto no desenho, agora também por envolver consistência entre serviços.
 5. **Retorno do gateway [A DEFINIR]:** síncrono ou por evento (RF06).
 6. **Autenticação [A DEFINIR]:** própria ou delegada (RF03).
