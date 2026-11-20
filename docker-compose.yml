@@ -1,0 +1,126 @@
+# Orquestração da Loja Virtual — SOA + Hexagonal (docs/adr/0001..0003)
+# Sobe MySQL, RabbitMQ e as 5 APIs (gateway, pedidos, estoque, pagamento, notificação)
+# Uso: docker compose up -d
+
+# Variáveis compartilhadas por todas as APIs (ancoragem YAML)
+x-api-env: &api-env
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  MYSQL_USER: root
+  MYSQL_PASSWORD: root
+  MYSQL_DATABASE: loja_virtual
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: loja
+  RABBITMQ_PASSWORD: loja
+  PEDIDOS_URL: http://pedidos:3001
+  ESTOQUE_URL: http://estoque:3002
+  PAGAMENTO_URL: http://pagamento:3003
+  NOTIFICACAO_URL: http://notificacao:3004
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: loja-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: loja_virtual
+    ports:
+      # 3307 na host para não conflitar com um MySQL local
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # scripts executados na primeira subida (schema + seed mockado)
+      - ./src/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: loja-rabbitmq
+    environment:
+      # usuário dedicado (o "guest" só conecta de localhost)
+      RABBITMQ_DEFAULT_USER: loja
+      RABBITMQ_DEFAULT_PASS: loja
+    ports:
+      - "5672:5672"
+      - "15672:15672" # painel de gerência (login: loja/loja)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  gateway:
+    build: ./src/gateway
+    container_name: loja-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *api-env
+      PORT: "3000"
+    depends_on:
+      pedidos:
+        condition: service_started
+
+  pedidos:
+    build: ./src/pedidos
+    container_name: loja-pedidos
+    ports:
+      - "3001:3001"
+    environment:
+      <<: *api-env
+      PORT: "3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  estoque:
+    build: ./src/estoque
+    container_name: loja-estoque
+    ports:
+      - "3002:3002"
+    environment:
+      <<: *api-env
+      PORT: "3002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  pagamento:
+    build: ./src/pagamento
+    container_name: loja-pagamento
+    ports:
+      - "3003:3003"
+    environment:
+      <<: *api-env
+      PORT: "3003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notificacao:
+    build: ./src/notificacao
+    container_name: loja-notificacao
+    ports:
+      - "3004:3004"
+    environment:
+      <<: *api-env
+      PORT: "3004"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
