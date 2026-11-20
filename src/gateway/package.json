@@ -1,0 +1,13 @@
+{
+  "name": "loja-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API Gateway da Loja Virtual - ponto unico de entrada, sem regra de negocio (ADR-0003)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
