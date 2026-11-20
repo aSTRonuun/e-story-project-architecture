@@ -1,0 +1,15 @@
+{
+  "name": "loja-notificacao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de Notificacao da Loja Virtual - reage a mudancas de status e avisa o cliente (RF08)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5"
+  }
+}
