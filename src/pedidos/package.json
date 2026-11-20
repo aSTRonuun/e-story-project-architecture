@@ -1,0 +1,15 @@
+{
+  "name": "loja-pedidos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de Pedidos da Loja Virtual - carrinho, checkout e ciclo de vida do pedido (RF04, RF05, RF07)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5"
+  }
+}
