@@ -1,0 +1,306 @@
+FINALIZAÇÃO DE ESTOQUE, PAGAMENTO E NOTIFICAÇÃO
+Data: 21/11/2026. Branch preservada: feature/backEnd-rafael.
+
+1. DIAGNÓSTICO INICIAL
+
+Foram lidos README, src/AGENT.md, os cinco ADRs (0001 a 0005),
+Compose, SQL 001 e o código dos cinco serviços. Nenhum documento obrigatório
+estava ausente. O repositório estava sem alterações locais no início.
+
+Já existiam estrutura hexagonal, portas, injeção manual, rotas Express,
+adaptadores MySQL/RabbitMQ, gateway de pagamento e canal de envio mockados.
+Os contratos já eram usados por Pedidos. Faltavam os scripts SQL 002 a 004.
+Estoque fazia leitura e gravação separadas, sem transação nem controle de
+concorrência. Estoque e Notificação usavam Set em memória, marcando eventos
+antes de completar o processamento. Consumidores descartavam falhas;
+Notificação escondia erros de envio. Pagamento não tinha idempotência nem
+recuperação da janela entre gravação e publicação. Não havia testes.
+
+Conflitos explicitados e decisões:
+- RF06 antigo no README fala em manter reserva após recusa. ADR-0004,
+  aceito e mais específico, exige liberação imediata: comportamento aplicado.
+- Pedidos consulta produtos diretamente como mock de Catálogo; é exceção
+  documentada no ADR-0002. Preservada para manter a demonstração existente.
+- O comentário de Pedidos sobre manter a reserva após recusa está antigo;
+  quem controla a reserva é Estoque, que agora segue o ADR-0004.
+- Compose efetivo usa MySQL 8.4, preservado, com porta externa 3307.
+
+Contratos preservados:
+POST /reservas: {pedidoId,itens:[{produtoId,quantidade}]} -> {ok:true},
+ou {ok:false,motivo:"estoque_insuficiente"}; entradas inválidas: HTTP 400;
+mesmo pedido com outros itens: HTTP 409. Indisponibilidade continua sendo
+resposta HTTP 200 com ok:false, compatível com o cliente existente.
+POST /cobrancas: {pedidoId,valor,simularRecusa?} -> HTTP 201 com
+{cobrancaId,status:"aprovado"|"recusado"}. cobrancaId já existia no contrato.
+GET /notificacoes -> {notificacoes:[{id,pedidoId,canal,mensagem,enviadoEm}]}.
+Eventos JSON preservam evento, pedidoId, valor e data no pagamento;
+Notificação aceita o formato de PedidoStatusAlterado publicado por Pedidos.
+
+2. ARQUIVOS CRIADOS OU MODIFICADOS
+
+Estoque:
+- src/estoque/domain/reserva.js (novo): valida ids/quantidades, agrega itens
+  repetidos e ordena produtos para aquisição consistente de locks.
+- src/estoque/domain/item-estoque.js: impede movimentos inválidos.
+- src/estoque/application/ports/index.js: operações atômicas do repositório.
+- src/estoque/application/usecases/reservar-estoque.js: validação e delegação.
+- src/estoque/application/usecases/aplicar-resultado-pagamento.js:
+  validação de evento e delegação da transição atômica.
+- src/estoque/adapters/out/estoque-repositorio-mysql.js: transações, UPDATE
+  condicional, reserva persistente por pedido e transição terminal única.
+- src/estoque/adapters/in/consumidor-resultado-pagamento.js: aguarda bindings,
+  confirmação, tentativas atrasadas e preservação na fila de erro.
+- src/estoque/infrastructure/container.js: composição e recuperação Rabbit.
+- src/estoque/infrastructure/rabbit.js (novo): reconexão e confirm channel.
+
+Pagamento:
+- src/pagamento/domain/cobranca.js: valida pedidoId e valor monetário.
+- src/pagamento/application/ports/index.js: contrato de persistência/outbox.
+- src/pagamento/application/usecases/cobrar-pedido.js: valida simularRecusa,
+  usa gateway injetado e mantém resposta recuperável se o broker falhar.
+- src/pagamento/adapters/out/cobranca-repositorio-mysql.js: serializa por
+  pedido, grava cobrança+outbox atomicamente e publica pendências com lock.
+- src/pagamento/adapters/out/eventos-publicador-rabbit.js: aguarda confirmação.
+- src/pagamento/infrastructure/container.js: worker de outbox a cada 2s,
+  confirma publicação e provisiona filas antes dos primeiros eventos.
+- src/pagamento/infrastructure/rabbit.js (novo): reconexão e confirm channel.
+
+Notificação:
+- src/notificacao/application/ports/index.js: contrato de envio idempotente.
+- src/notificacao/application/usecases/notificar-mudanca-status.js: valida
+  evento, define chave estável e propaga falhas para nova tentativa.
+- src/notificacao/adapters/out/notificacao-repositorio-mysql.js: chave única,
+  transação, lock e consulta dos envios confirmados.
+- src/notificacao/adapters/in/consumidor-mudanca-status.js: confirmação,
+  tentativas atrasadas e fila durável de erro.
+- src/notificacao/infrastructure/container.js: composição e datas em UTC.
+- src/notificacao/infrastructure/rabbit.js (novo): reconexão e confirm channel.
+
+Banco (todos novos):
+- src/mysql/init/002_estoque.sql: produtos/estoque, cinco seeds,
+  estoque_reservas e reservas; constraints de integridade.
+- src/mysql/init/003_pagamento.sql: cobrancas e pagamento_eventos (outbox).
+- src/mysql/init/004_notificacao.sql: notificacoes com chave única.
+Não há FK para tabelas de outros serviços.
+
+Testes/documentação (novos):
+- tests/unidade.cjs: domínio, casos de uso e protocolos de confirmação/falha.
+- tests/integracao.cjs: testes HTTP, MySQL, RabbitMQ e checkout pelo Gateway.
+- tests/recuperacao.cjs: reinício real, broker offline e recuperação.
+- RELATORIO-RAFAEL.txt: este relatório e roteiro da apresentação.
+
+Nenhum arquivo de Pedidos, Gateway, Compose, Dockerfile ou ADR foi alterado.
+Não houve commit, push, merge ou mudança de branch.
+
+3. ESTOQUE
+
+A entrada exige inteiros positivos dentro do limite INT. Produtos repetidos
+são somados, depois ordenados. Uma conexão inicia uma transação e cria/bloqueia
+estoque_reservas pelo pedidoId. A assinatura normalizada impede reutilizar
+o mesmo id com outro conteúdo. Uma repetição idêntica retorna sucesso sem
+reservar novamente, inclusive depois de a reserva se tornar terminal.
+
+Cada produto usa UPDATE estoque SET reservado=reservado+quantidade
+WHERE produto_id=? AND saldo-reservado>=quantidade. Só affectedRows=1 aceita
+o item. Falha em qualquer item reverte a reserva inteira, inclusive metadados.
+Isso protege a última unidade contra requisições simultâneas.
+
+O evento bloqueia a reserva por pedido e processa apenas status pendente:
+aprovação reduz saldo e reservado; recusa reduz apenas reservado. A transição
+para baixada/liberada é confirmada na mesma transação. Duplicatas e eventos
+posteriores conflitantes não repetem o efeito. O primeiro resultado terminal
+é definitivo; esta demo não oferece novas tentativas de cobrança do mesmo
+pedido depois de recusado. Reserva ausente gera tentativa/registro de erro,
+em vez de perder silenciosamente o evento.
+
+4. PAGAMENTO
+
+GatewayPagamentoMock existente foi preservado: autorizar aprova normalmente,
+e simularRecusa:true recusa. O caso de uso depende da porta, não de amqplib
+ou mysql2. Valores devem ser positivos, finitos e representar centavos.
+
+O repositório serializa requisições do mesmo pedido. O mock é chamado uma
+vez por cobrança confirmada; mudanças de valor/opção para o mesmo id dão 409.
+A cobrança e o evento completo da outbox são gravados na mesma transação.
+Falha do gateway ou do MySQL reverte a operação, sem publicar resultado.
+
+Eventos usam loja.eventos/topic e pagamento.aprovado/pagamento.recusado,
+com PagamentoAprovado/PagamentoRecusado no campo evento. Filas distintas
+pedidos.resultado-pagamento e estoque.resultado-pagamento recebem cada evento.
+O publicador usa mensagens persistentes e confirmações do broker. O worker
+republica pendências após reconexão e usa SKIP LOCKED para não disputar lotes.
+Se a publicação falha, a resposta síncrona conserva o resultado já gravado;
+o estado definitivo continua mudando somente pelo evento (ADR-0005).
+Uma falha depois da confirmação e antes do commit pode repetir a mensagem:
+entrega é pelo menos uma vez, protegida pelos consumidores idempotentes.
+
+5. NOTIFICAÇÃO
+
+Consome pedido.status.alterado em notificacao.mudanca-status. Valida tipo,
+id, status e motivo. A chave estável combina pedido, status e motivo,
+independentemente de timestamps diferentes em mensagens equivalentes.
+Uma chave única e um lock serializam duplicatas concorrentes. O CanalEnvioMock
+existente simula o envio pelo console. O registro é confirmado após envio;
+a consulta REST mantém o DTO original e retorna os registros persistidos.
+
+Falha de envio/persistência reverte a transação e chega ao consumidor.
+Ambos os consumidores implementados usam ack só depois do sucesso ou da
+confirmação de encaminhamento da falha. Falhas transitórias vão para .retry
+com atraso de 2s, até três reentregas; inválidas ou esgotadas vão para .erro.
+Se nem esse encaminhamento for confirmado, nack com requeue preserva a
+mensagem original. Filas de erro requerem inspeção e reprocessamento manual.
+A notificação é assíncrona e não participa da transação de Pedidos.
+
+6. TESTES E EVIDÊNCIAS
+
+Executados com Node 20, Docker Compose, MySQL 8.4 e RabbitMQ 4 reais:
+- 29 testes unitários: todos aprovados, zero falhas/ignorados.
+- 19 cenários de integração: todos aprovados (node:test contabiliza também
+  o teste pai, mostrando 20 testes aprovados).
+- Recuperação real: preparação, reinício dos três serviços, repetição de
+  eventos após reinício, persistência/consulta de notificação, cobrança com
+  broker desligado e republicação/baixa após religar: todos aprovados.
+- Compose config e verificação de sintaxe JavaScript: aprovados.
+- git diff --check: aprovado.
+
+Integração cobre reserva válida/insuficiente/produto ausente/quantidade
+inválida/múltiplos itens/rollback, 20 concorrentes pela última unidade,
+aprovação/recusa/duplicatas/repetição de requisição, cobrança persistida,
+formato do evento, falha injetada de gateway, falha de publicação/outbox,
+notificação e consulta reais, falha de envio e nova instância, fila de erro,
+e dois checkouts completos pelo Gateway. Não houve saldo negativo nem
+reservado fora de [0,saldo].
+
+A primeira execução de integração falhou por um hook do próprio teste que
+fechava as conexões após o primeiro cenário. O harness foi corrigido e a
+suíte completa foi reexecutada com sucesso. Não há falha residual dessa execução.
+
+Na indisponibilidade real do RabbitMQ, os consumidores de Estoque e
+Notificação voltaram automaticamente. A fila de Pedidos ficou sem consumidor
+(0 consumidores, 2 mensagens), confirmando sua falta de reconexão. Pedidos
+foi reiniciado manualmente para restabelecer a aplicação, sem editar seu código.
+
+Não executados: provedor de pagamento/e-mail real (fora do escopo), testes
+prolongados de carga e queda abrupta de energia durante commit. Atraso/retry,
+esgotamento e falha do encaminhamento foram testados com canal simulado;
+encaminhamento de mensagem inválida à fila de erro foi verificado no broker real.
+
+Como repetir:
+  node tests/unidade.cjs
+  docker compose config --quiet
+  docker compose up -d --build
+  docker compose run --rm --no-deps -v "$PWD:/projeto:ro" pagamento node /projeto/tests/integracao.cjs
+
+Recuperação real (somente no ambiente de demonstração, pois para o broker):
+  docker cp tests/recuperacao.cjs loja-pagamento:/tmp/recuperacao.cjs
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs preparar
+  docker compose restart estoque pagamento notificacao
+  # aguardar os três servidores escutarem
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs reinicio
+  docker compose stop rabbitmq
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs offline
+  docker compose start rabbitmq
+  # aguardar broker saudável e reconexão dos consumidores
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs recuperado
+  docker compose restart pedidos
+
+Os testes criam fixtures próprias com ids altos e preservam os dados.
+Os checkouts consomem uma unidade do produto 5 por aprovação. Não executar
+repetidamente até esgotar o seed. Há uma mensagem inválida intencional em
+notificacao.mudanca-status.erro, produzida pelo teste. Nenhuma fila foi purgada.
+O ambiente e seu volume foram criados nesta execução e permanecem disponíveis.
+Os contêineres pies-academia de outro projeto não foram interrompidos.
+Portas confirmadas: 3000 a 3004, MySQL 3307, AMQP 5672, painel 15672.
+
+Banco com volume já inicializado:
+Os scripts novos usam CREATE TABLE IF NOT EXISTS e INSERT IGNORE, sem zerar
+estoque nem sobrescrever nomes/preços já cadastrados. Após revisar o schema
+existente, é possível aplicá-los sem remover volumes:
+  docker compose exec -T mysql mysql -uroot -proot loja_virtual < src/mysql/init/002_estoque.sql
+  docker compose exec -T mysql mysql -uroot -proot loja_virtual < src/mysql/init/003_pagamento.sql
+  docker compose exec -T mysql mysql -uroot -proot loja_virtual < src/mysql/init/004_notificacao.sql
+Esses scripts criam tabelas ausentes; não migram automaticamente tabelas de
+outro formato. Nesta execução o volume era novo e todos os scripts rodaram
+pelo entrypoint. Não foi necessário migrar dados antigos.
+
+7. PENDÊNCIAS E LIMITES
+
+Nas três APIs do Rafael:
+- Não há bloqueio conhecido do fluxo acadêmico; testes atuais passam.
+- A chave de notificação representa uma ocorrência por pedido/status/motivo.
+  Para ciclos futuros que repetem legitimamente o mesmo status, o contrato de
+  Pedidos precisará fornecer um identificador estável de evento/transição.
+- Envio externo e commit MySQL não constituem transação distribuída. Se um
+  provedor enviar e o processo cair antes do commit, pode haver novo envio.
+  Um provedor real deve aceitar a chave de idempotência repassada ao adaptador.
+  O mock atual apenas registra no console; o registro MySQL é único.
+- Para gateway real, usar idempotência do provedor; o mock atual não movimenta
+  dinheiro. Uma autorização externa concluída antes de falha no commit não
+  pode ser desfeita apenas por rollback local.
+- Retry é limitado e preserva erros em filas duráveis para intervenção manual.
+- Expiração por tempo e nova tentativa de pagamento ficam fora da demo,
+  conforme ADR-0004; recusa libera a reserva imediatamente.
+
+Em Pedidos/integração do Josias (preservados, sem reescrita):
+- Sem reconexão RabbitMQ: reiniciar Pedidos após reinício do broker.
+- Set em memória marca eventos antes de completar o efeito; falha posterior
+  pode impedir repetição útil. O consumidor descarta falhas sem fila de erro.
+- Publicação de mudança de status não usa confirmação nem outbox. Há janela
+  entre atualizar pedido e publicar notificação que exige melhoria própria.
+- Clientes HTTP não validam status de erro das APIs. Checkout não compensa
+  todas as falhas de transporte; reserva pode ficar pendente se a cobrança
+  nunca for aceita. Não foi introduzida saga fora do escopo.
+- Validação de checkout/pedido é menos estrita que a das APIs finalizadas.
+- O README ainda contém RF06 antigo e comando de remoção de volume. Usar
+  o comportamento do ADR-0004 e preservar os dados existentes.
+
+8. ROTEIRO PARA APRESENTAÇÃO NO VS CODE
+
+SOA: abrir docker-compose.yml e docs/adr/0002-fronteiras-dos-servicos.md.
+Explicar que Estoque, Pagamento e Notificação são processos separados, com
+responsabilidades próprias, dados próprios e contratos explícitos. O MySQL
+é compartilhado apenas na infraestrutura desta demonstração; não há joins
+entre os dados dos três serviços implementados.
+
+Hexagonal: abrir src/pagamento/domain/cobranca.js,
+src/pagamento/application/usecases/cobrar-pedido.js e
+src/pagamento/application/ports/index.js. Mostrar domínio e aplicação sem
+imports de Express, mysql2 ou amqplib. As portas definem o que o núcleo usa.
+Não há estilo adicional de Clean Architecture.
+
+Portas e adaptadores/substituição: abrir
+src/pagamento/adapters/out/gateway-pagamento-mock.js e
+src/notificacao/adapters/out/canal-envio-mock.js. Mostrar autorizar/enviar;
+um provedor real implementa as mesmas portas, sem alterar domínio/caso de uso.
+Abrir tests/unidade.cjs para mostrar substituições injetadas e falhas simuladas.
+
+Injeção de dependências: abrir src/pagamento/infrastructure/container.js.
+O composition root instancia repositório, gateway e publicador e os entrega
+a CobrarPedido. Repetir com src/notificacao/infrastructure/container.js.
+
+REST: abrir src/estoque/adapters/in/rota-estoque.js e
+src/pedidos/adapters/out/estoque-api-http.js. Mostrar POST /reservas,
+validação no núcleo e retorno imediato. Mostrar POST /cobrancas e
+GET /notificacoes nos adaptadores de entrada correspondentes.
+
+Concorrência: abrir src/estoque/adapters/out/estoque-repositorio-mysql.js
+nos métodos reservar e aplicarResultado; depois src/mysql/init/002_estoque.sql.
+Explicar transação, UPDATE condicional, lock da reserva, rollback e estado
+terminal persistente. Executar o cenário dos 20 concorrentes em integracao.cjs.
+
+Eventos: abrir src/pagamento/adapters/out/eventos-publicador-rabbit.js,
+src/pagamento/adapters/out/cobranca-repositorio-mysql.js,
+src/estoque/adapters/in/consumidor-resultado-pagamento.js e
+src/notificacao/adapters/in/consumidor-mudanca-status.js. Mostrar topic
+loja.eventos, filas independentes, confirmação, idempotência, retry e erro.
+Explicar que o retorno HTTP da cobrança não altera o estado final de Pedidos.
+
+Demonstração prática:
+  curl -X POST http://localhost:3000/checkout -H 'content-type: application/json' -d '{"clienteId":"cliente-1","itens":[{"produtoId":1,"quantidade":2}]}'
+  curl http://localhost:3004/notificacoes
+  curl -X POST http://localhost:3000/checkout -H 'content-type: application/json' -d '{"clienteId":"cliente-1","itens":[{"produtoId":1,"quantidade":1}],"simularRecusa":true}'
+  curl http://localhost:3004/notificacoes
+Aguardar consistência eventual antes de consultar. Na aprovação, pedido
+fica Pago, estoque baixa e aviso aparece. Na recusa, pedido fica Aguardando
+pagamento, reserva é liberada e aviso contém o motivo. Mostrar RabbitMQ em
+http://localhost:15672 (loja/loja) e logs do envio mockado para completar.

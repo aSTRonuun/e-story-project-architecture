@@ -1,6 +1,6 @@
 // Composicao: monta as dependencias (injecao manual) e devolve o app + consumidor.
 const express = require('express');
-const amqplib = require('amqplib');
+const conectarRabbit = require('./rabbit');
 const mysql = require('mysql2/promise');
 const config = require('./config');
 const NotificacaoRepositorioMysql = require('../adapters/out/notificacao-repositorio-mysql');
@@ -11,16 +11,19 @@ const rotaNotificacao = require('../adapters/in/rota-notificacao');
 const consumidorMudancaStatus = require('../adapters/in/consumidor-mudanca-status');
 
 async function criarApp() {
-  const pool = await mysql.createPool({ ...config.mysql, waitForConnections: true });
+  const pool = await mysql.createPool({
+    ...config.mysql,
+    waitForConnections: true,
+    timezone: 'Z',
+  });
 
   const notificacaoRepositorio = new NotificacaoRepositorioMysql({ pool });
   const canalEnvio = new CanalEnvioMock();
-  const notificarMudancaStatus = new NotificarMudancaStatus({ notificacaoRepositorio, canalEnvio });
+  const notificarMudancaStatus = new NotificarMudancaStatus({
+    notificacaoRepositorio,
+    canalEnvio,
+  });
   const listarNotificacoes = new ListarNotificacoes({ notificacaoRepositorio });
-
-  const conexaoRabbit = await amqplib.connect(config.rabbitmq.url);
-  const canal = await conexaoRabbit.createChannel();
-  await canal.assertExchange(config.rabbitmq.exchange, 'topic', { durable: true });
 
   const app = express();
   app.use(express.json());
@@ -33,11 +36,17 @@ async function criarApp() {
     res.status(status).json({ erro: erro.message });
   });
 
-  await consumidorMudancaStatus({
-    canal,
-    fila: config.rabbitmq.filaMudancaStatus,
-    notificarMudancaStatus,
+  const rabbit = await conectarRabbit(config.rabbitmq, async (canal) => {
+    await consumidorMudancaStatus({
+      canal,
+      fila: config.rabbitmq.filaMudancaStatus,
+      notificarMudancaStatus,
+    });
   });
+  app.locals.fechar = async () => {
+    await rabbit.fechar();
+    await pool.end();
+  };
 
   return app;
 }
