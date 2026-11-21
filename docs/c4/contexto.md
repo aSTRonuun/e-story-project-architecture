@@ -6,7 +6,7 @@ Como as decisões de arquitetura aparecem aqui:
 
 | Decisão | Reflexo no Contexto |
 |---|---|
-| [ADR-0001](../adr/0001-estilo-arquitetural.md): SOA, com Clean + Hexagonal por serviço | Descrição do sistema; os externos entram por portas de saída e são simulados (RNF02) |
+| [ADR-0001](../adr/0001-estilo-arquitetural.md): SOA, com Hexagonal por serviço | Descrição do sistema; os externos entram por portas de saída e são simulados (RNF02) |
 | [ADR-0002](../adr/0002-fronteiras-dos-servicos.md): seis serviços | Identidade é interna ao sistema, então não aparece como sistema externo |
 | [ADR-0003](../adr/0003-comunicacao-entre-servicos.md): REST + eventos, API Gateway único | Todo acesso dos usuários entra pelo sistema por HTTPS (via API Gateway); detalhes ficam no Container |
 
@@ -22,7 +22,7 @@ C4Context
     Person(cliente, "Cliente", "Visitante autenticado. Compra e acompanha pedidos")
     Person(admin, "Administrador", "Gerencia catálogo e estoque")
 
-    System(loja, "Loja Virtual", "Sistema de e-commerce em arquitetura SOA. Cada serviço segue Clean Architecture + Hexagonal e o acesso externo entra por um API Gateway")
+    System(loja, "Loja Virtual", "Sistema de e-commerce em arquitetura SOA. Cada serviço segue Arquitetura Hexagonal e o acesso externo entra por um API Gateway")
 
     System_Ext(pagamento, "Gateway de Pagamento", "Sistema externo simulado. Autoriza ou recusa pagamentos")
     System_Ext(notificacao, "Serviço de Notificação", "Sistema externo simulado. Envia e-mail ou push ao cliente")
