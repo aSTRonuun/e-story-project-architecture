@@ -95,13 +95,67 @@ Formato da mensagem (combinar com o Josias):
 
 ## 4. Banco MySQL (database único `loja_virtual`)
 
-Você cria **3 arquivos** em `src/mysql/init/` (o Josias cria o `001_pedidos.sql`):
+Você cria **3 arquivos** em `src/mysql/init/` (o Josias já criou o `001_pedidos.sql` com `pedidos` e `pedido_itens`):
 
-- `002_estoque.sql` → tabelas `produtos` e `estoque` + **seed mock** (~5 produtos com saldos)
+- `002_estoque.sql` → tabelas `produtos`, `estoque` e `reservas` + **seed mock**
 - `003_pagamento.sql` → tabela `cobrancas`
 - `004_notificacao.sql` → tabela `notificacoes`
 
 Cada serviço só acessa as **suas tabelas** (dado lógico por serviço, ADR-0002).
+
+### ⚠️ Colunas exatas (contrato com o código do Josias)
+
+O backend já está escrito esperando **exatamente** estas colunas — use este DDL como base:
+
+```sql
+-- 002_estoque.sql
+CREATE TABLE produtos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(120) NOT NULL,
+  preco DECIMAL(10,2) NOT NULL
+);
+CREATE TABLE estoque (
+  produto_id INT PRIMARY KEY,
+  saldo INT NOT NULL,
+  reservado INT NOT NULL DEFAULT 0
+);
+CREATE TABLE reservas (
+  pedido_id INT NOT NULL,
+  produto_id INT NOT NULL,
+  quantidade INT NOT NULL
+);
+
+-- 003_pagamento.sql
+CREATE TABLE cobrancas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pedido_id INT NOT NULL,
+  valor DECIMAL(10,2) NOT NULL,
+  status VARCHAR(20) NOT NULL   -- 'aprovada' | 'recusada'
+);
+
+-- 004_notificacao.sql
+CREATE TABLE notificacoes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pedido_id INT NOT NULL,
+  canal VARCHAR(20) NOT NULL,     -- 'email' | 'push'
+  mensagem VARCHAR(255) NOT NULL,
+  enviado_em TIMESTAMP NOT NULL   -- grave como 'YYYY-MM-DD HH:MM:SS' (sem T/Z)
+);
+```
+
+Seed mock (produtos com os mesmos `id` usados nos testes):
+
+```sql
+INSERT INTO produtos (nome, preco) VALUES
+  ('Teclado mecanico', 250.00), ('Mouse gamer', 150.00),
+  ('Monitor 24"', 900.00), ('Cadeira ergonomica', 1200.00),
+  ('Headset', 300.00);
+INSERT INTO estoque (produto_id, saldo, reservado) VALUES
+  (1, 10, 0), (2, 5, 0), (3, 3, 0), (4, 2, 0), (5, 0, 0);
+```
+
+> `produtos` é lido pelo serviço de **Pedidos** (mock do Catálogo, que ficou fora da demo) e o `estoque` pelo de Estoque — por isso ambos no seu `002`.
+> A tabela `reservas` é o vínculo pedido ↔ estoque que permite **baixar** (aprovado) ou **liberar** (recusado) — ADR-0004.
 
 ---
 
