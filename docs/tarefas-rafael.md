@@ -55,7 +55,7 @@ Quem conhece infraestrutura são só os `adapters` (classe adapter para banco, R
 // falha (estoque insuficiente)
 { "ok": false, "motivo": "estoque_insuficiente" }
 ```
-- Reserva com **controle de concorrência**: `UPDATE estoque SET reservado = reservado + ? WHERE produto_id = ? AND (saldo - reservado) >= ?` — se 0 linhas afetadas, recusa (RNF03/RF10).
+- Reserva com **controle de concorrência** (RNF03/RF10): `UPDATE estoque SET reservado = reservado + ? WHERE produto_id = ? AND (saldo - reservado) >= ?` em transação — se 0 linhas afetadas, desfaz tudo e recusa. **Já implementado pelo Josias** em `adapters/out/estoque-repositorio-mysql.js` (método `reservar`); revise junto com o resto do serviço.
 - **Baixa** e **liberação** da reserva acontecem **via eventos** (abaixo), não via HTTP.
 
 **Pagamento — `POST /cobrancas`**

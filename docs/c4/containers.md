@@ -119,6 +119,7 @@ flowchart LR
 ## Observações
 
 - **Demonstração:** gateway, Pedidos, Estoque, Pagamento e Notificação são implementados, cada um com um endpoint. Catálogo e Identidade ficam só no diagrama (ADR-0002): os dados do produto (nome e preço) vêm de uma tabela seed usada como mock pelo serviço de Pedidos. Vale marcar isso na versão final do C4 para manter o código consistente com os diagramas (RNF05).
+- **Gateway na demonstração:** só roteia `POST /checkout` para Pedidos. A validação de token (Identidade) e a composição "produto + disponibilidade" (RF02) são o estado-alvo do diagrama e ficam fora da demo (22/11).
 - **Dados:** cada serviço é dono dos seus dados (ADR-0002). Na demonstração há um único MySQL com tabelas por serviço, e cada serviço acessa apenas as suas.
 - **Tecnologias:** serviços e gateway em Node.js + Express, broker RabbitMQ, MySQL — tudo orquestrado pelo `docker-compose.yml` na raiz. O front-end permanece fora do escopo desta entrega.
 - **Quem consome o resultado do pagamento:** o diagrama mostra Pedidos (atualiza o status) e Estoque (baixa ou libera a reserva) consumindo o evento — comportamento definido no [ADR-0004](../adr/0004-reserva-de-estoque.md).

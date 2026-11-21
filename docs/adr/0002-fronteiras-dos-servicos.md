@@ -57,5 +57,5 @@ Com SOA decidido (ADR-0001), é preciso definir quais serviços existem, o que c
 ## Pontos em aberto
 
 - ~~Comunicação entre serviços e API Gateway/BFF~~ e ~~quem compõe a visão "produto + disponibilidade" (RF02)~~ — resolvidos no [ADR-0003](0003-comunicacao-entre-servicos.md) (o API Gateway compõe).
-- Reserva de estoque e retorno do gateway.
+- ~~Reserva de estoque~~ e ~~retorno do gateway~~ — resolvidos nos [ADR-0004](0004-reserva-de-estoque.md) e [ADR-0005](0005-retorno-do-gateway.md).
 - Autenticação (própria ou delegada).

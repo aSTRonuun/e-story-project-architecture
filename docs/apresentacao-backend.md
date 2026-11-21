@@ -20,7 +20,7 @@ src/<servico>/
 | API | Porta | Endpoint | RF |
 |---|---|---|---|
 | API Gateway | 3000 | `POST /checkout` | ponto de entrada (ADR-0003) |
-| Pedidos | 3001 | `POST /pedidos` | RF04, RF05, RF07 |
+| Pedidos | 3001 | `POST /pedidos` | RF05 (RF04 simulado no payload; RF07 fora da demo) |
 | Estoque | 3002 | `POST /reservas` | RF10 (apoia RF05/RF06) |
 | Pagamento | 3003 | `POST /cobrancas` | RF06 |
 | Notificação | 3004 | `GET /notificacoes` | RF08 |

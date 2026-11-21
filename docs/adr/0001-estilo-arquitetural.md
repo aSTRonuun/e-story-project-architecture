@@ -12,7 +12,7 @@ O README deixava o estilo arquitetural em aberto entre Hexagonal, SOA e Clean Ar
 - **RNF01:** o domínio não pode depender de framework, banco ou serviços externos.
 - **RNF02:** pagamento e notificação devem ser substituíveis por simulações.
 - **RNF03 / RF10:** nenhuma venda além do estoque, inclusive sob concorrência.
-- O fluxo da demonstração (RF04 → RF05 → RF06 → RF08, com RF10 de suporte) atravessa carrinho, pedido, estoque, pagamento e notificação.
+- O fluxo da demonstração (RF05 → RF06 → RF08, com RF10 de suporte; o RF04 é simulado pelo payload do checkout) atravessa pedido, estoque, pagamento e notificação.
 
 ## Decisão
 

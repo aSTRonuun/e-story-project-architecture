@@ -62,5 +62,5 @@ flowchart LR
 
 ## Observações
 
-- **Retorno do pagamento:** a seta para o Gateway de Pagamento não mostra a volta da resposta (síncrona ou por callback), porque essa decisão ainda está em aberto.
+- **Retorno do pagamento:** decidido no [ADR-0005](../adr/0005-retorno-do-gateway.md) — o serviço de Pagamento recebe resposta síncrona do gateway externo **e** publica o resultado como evento (`pagamento.aprovado` / `pagamento.recusado`); o estado do pedido e do estoque muda só pelo evento. A seta do diagrama não detalha a volta porque aqui o sistema aparece como caixa única; o detalhe fica no Container.
 - **Autenticação:** se ela for delegada a um provedor externo (OAuth), ele passa a aparecer aqui como sistema externo. Hoje Identidade é um serviço interno (ADR-0002).

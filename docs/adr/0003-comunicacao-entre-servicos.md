@@ -7,7 +7,7 @@
 
 ## Contexto
 
-Com os serviços definidos (ADR-0002), é preciso decidir como eles conversam entre si e como o cliente (front-end) chega até eles. O fluxo da demonstração (RF04 → RF05 → RF06 → RF08, com RF10 de suporte) mistura passos que exigem resposta imediata (o checkout precisa saber se a reserva de estoque foi aceita) e passos que são reações a algo que já aconteceu (resultado do pagamento, notificação).
+Com os serviços definidos (ADR-0002), é preciso decidir como eles conversam entre si e como o cliente (front-end) chega até eles. O fluxo da demonstração (RF05 → RF06 → RF08, com RF10 de suporte; o RF04 é simulado pelo payload do checkout) mistura passos que exigem resposta imediata (o checkout precisa saber se a reserva de estoque foi aceita) e passos que são reações a algo que já aconteceu (resultado do pagamento, notificação).
 
 Pelo ADR-0001, a comunicação entre serviços é uma **porta de saída** do núcleo de cada serviço: o domínio não conhece o transporte.
 
@@ -23,6 +23,8 @@ Pelo ADR-0001, a comunicação entre serviços é uma **porta de saída** do nú
 | Pagamento → resultado (aprovado ou recusado) | Evento | Pedidos atualiza o status e o Estoque baixa ou libera a reserva, sem acoplar os serviços |
 | Pedidos → mudança de status | Evento | Notificação reage ao evento; falha no envio não afeta o pedido (RF08) |
 
+> **Na demonstração:** o Catálogo não existe como serviço, então a linha "Pedidos → Catálogo" é atendida pela leitura da tabela `produtos` (seed mock) pelo próprio repositório de Pedidos ([ADR-0002](0002-fronteiras-dos-servicos.md)). As demais linhas são implementadas como descrito.
+
 Regras:
 - **Comandos que precisam de resposta imediata** usam REST. **Fatos que já ocorreram** são publicados como eventos.
 - Eventos são nomeados no passado (por exemplo, `PagamentoAprovado`, `PagamentoRecusado`, `PedidoStatusAlterado`) e seus contratos são versionados.
@@ -32,9 +34,10 @@ Regras:
 
 ### 2. API Gateway único como ponto de entrada
 
-- O front-end fala apenas com o **API Gateway**, que valida o token emitido por Identidade, roteia para os serviços e **compõe a visão "produto + disponibilidade" (RF02)**, juntando dados do Catálogo e do Estoque.
+- O front-end fala apenas com o **API Gateway**, que roteia para os serviços e, na arquitetura alvo, valida o token emitido por Identidade e **compõe a visão "produto + disponibilidade" (RF02)**, juntando dados do Catálogo e do Estoque.
 - Assim o Catálogo não depende do Estoque e a validação de token não se repete em cada serviço.
 - O Gateway não contém regra de negócio; só roteamento, autenticação e composição de leitura.
+- **Na demonstração (22/11):** o gateway implementa apenas o roteamento (`POST /checkout` → Pedidos); a validação de token (Identidade) e a composição RF02 (Catálogo + Estoque) ficam fora, pois esses dois serviços não são implementados na demo (ADR-0002).
 
 ## Consequências
 

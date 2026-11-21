@@ -2,7 +2,7 @@
 
 Trabalho final de Arquitetura de Software. Sistema de e-commerce documentado com o modelo C4 (Structurizr) e implementado parcialmente.
 
-> Status: em definição. Itens marcados com **[A DEFINIR]** dependem de decisão do grupo.
+> Status: backend da demonstração em revisão (PR `feature/backend-base` → `develop`). Itens marcados com **[A DEFINIR]** dependem de decisão do grupo.
 
 ## Sumário
 
@@ -69,13 +69,13 @@ Escritos no padrão **3C** (Card, Conversa, Confirmação).
 
 ### RF05: Finalizar compra (Cliente) — fluxo principal
 - **Card:** Como cliente, quero transformar meu carrinho em um pedido, para efetivar a compra.
-- **Conversa:** O estoque é reservado na criação do pedido ou só após o pagamento? Qual o prazo de expiração de pedidos não pagos?
+- **Conversa:** O estoque é reservado na criação do pedido ou só após o pagamento? Qual o prazo de expiração de pedidos não pagos? → **Decidido no [ADR-0004](docs/adr/0004-reserva-de-estoque.md):** reserva na criação do pedido.
 - **Confirmação:** Dado um carrinho válido, quando finalizo, então um pedido com status "Aguardando pagamento" é criado e o estoque é reservado. Dado que um item esgotou nesse intervalo, então o pedido não é criado e o cliente é informado.
 
 ### RF06: Pagar pedido (Cliente, Gateway) — fluxo principal
 - **Card:** Como cliente, quero pagar meu pedido por um meio de pagamento, para concluir a compra.
-- **Conversa:** Quais meios simular (cartão, PIX, boleto)? O retorno do gateway é síncrono ou por evento?
-- **Confirmação:** Dado pagamento aprovado, então o pedido passa a "Pago" e o estoque é baixado definitivamente. Dado pagamento recusado, então o pedido permanece pendente e a reserva é mantida até o prazo de expiração, quando é liberada.
+- **Conversa:** Quais meios simular (cartão, PIX, boleto)? O retorno do gateway é síncrono ou por evento? → **Decidido no [ADR-0005](docs/adr/0005-retorno-do-gateway.md):** resposta síncrona + evento publicado sempre; o estado final muda só pelo evento.
+- **Confirmação:** Dado pagamento aprovado, então o pedido passa a "Pago" e o estoque é baixado definitivamente. Dado pagamento recusado, então o pedido permanece pendente e a reserva é liberada pelo evento de recusa ([ADR-0004](docs/adr/0004-reserva-de-estoque.md); expiração por tempo fica fora da demo).
 
 ### RF07: Acompanhar pedidos (Cliente)
 - **Card:** Como cliente, quero ver a lista e o status dos meus pedidos, para saber em que etapa estão.
@@ -109,7 +109,7 @@ Escritos no padrão **3C** (Card, Conversa, Confirmação).
 
 ## Fluxo principal da demonstração
 
-RF01 a RF10 formam o mínimo viável. Para a apresentação, será implementado o fluxo **RF04 → RF05 → RF06 → RF08**, com **RF10** como suporte. Ele exercita portas e adaptadores (pagamento, notificação, persistência) e a comunicação entre componentes.
+RF01 a RF10 formam o mínimo viável. Para a apresentação de 22/11, o fluxo implementado é **RF05 → RF06 → RF08**, com **RF10** como suporte (o RF04 é simulado: o checkout recebe os itens direto, sem persistência de carrinho; e RF07 fica para a entrega seguinte, pois exigiria um segundo endpoint em Pedidos). Ele exercita portas e adaptadores (pagamento, notificação, persistência) e a comunicação entre componentes.
 
 ## Decisões arquiteturais pendentes
 
@@ -131,7 +131,9 @@ Cada decisão deve virar um ADR em `docs/adr/`.
 ├── docs/
 │   ├── adr/                # registros de decisões arquiteturais
 │   ├── c4/                 # diagramas C4 (Structurizr/Mermaid)
-│   └── use-cases/          # diagrama de casos de uso
+│   ├── use-cases/          # diagrama de casos de uso
+│   ├── apresentacao-backend.md  # roteiro da demo de 22/11
+│   └── tarefas-rafael.md   # contrato de DDL, endpoints e eventos
 └── src/                    # backend (cada serviço em Node.js + Express)
     ├── mysql/init/         # schema e seed do banco (executados na 1ª subida)
     ├── gateway/            # API Gateway - POST /checkout
