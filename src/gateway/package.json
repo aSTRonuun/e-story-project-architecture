@@ -3,11 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "description": "API Gateway da Loja Virtual - ponto unico de entrada, sem regra de negocio (ADR-0003)",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "dev": "tsc -p tsconfig.json --watch",
+    "dev:serve": "node --watch dist/server.js"
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.3",
+    "@types/node": "^20.17.0",
+    "@types/express": "^4.17.21"
   }
 }

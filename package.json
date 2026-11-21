@@ -1,0 +1,12 @@
+{
+  "name": "loja-virtual-backend",
+  "private": true,
+  "scripts": {
+    "install:services": "node scripts/backend.cjs install",
+    "build": "node scripts/backend.cjs build",
+    "typecheck": "node scripts/backend.cjs typecheck",
+    "test": "npm run build && npm run test:types && npm run test:unit",
+    "test:unit": "node tests/unidade.cjs && node tests/migracao.cjs",
+    "test:types": "node src/pagamento/node_modules/typescript/bin/tsc -p tests/tipos/tsconfig.json"
+  }
+}
