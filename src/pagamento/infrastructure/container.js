@@ -1,6 +1,6 @@
 // Composicao: monta as dependencias (injecao manual) e devolve o app.
 const express = require('express');
-const amqplib = require('amqplib');
+const conectarRabbit = require('./rabbit');
 const mysql = require('mysql2/promise');
 const config = require('./config');
 const CobrancaRepositorioMysql = require('../adapters/out/cobranca-repositorio-mysql');
@@ -10,20 +10,41 @@ const CobrarPedido = require('../application/usecases/cobrar-pedido');
 const rotaPagamento = require('../adapters/in/rota-pagamento');
 
 async function criarApp() {
-  const pool = await mysql.createPool({ ...config.mysql, waitForConnections: true });
+  const pool = await mysql.createPool({
+    ...config.mysql,
+    waitForConnections: true,
+  });
 
-  const conexaoRabbit = await amqplib.connect(config.rabbitmq.url);
-  const canal = await conexaoRabbit.createChannel();
-  await canal.assertExchange(config.rabbitmq.exchange, 'topic', { durable: true });
+  const rabbit = await conectarRabbit(config.rabbitmq, async (canal) => {
+    // Filas independentes existem antes da primeira publicação, mesmo se consumidores iniciarem depois.
+    for (const fila of [
+      'pedidos.resultado-pagamento',
+      'estoque.resultado-pagamento',
+    ]) {
+      await canal.assertQueue(fila, { durable: true });
+      for (const key of ['pagamento.aprovado', 'pagamento.recusado'])
+        await canal.bindQueue(fila, config.rabbitmq.exchange, key);
+    }
+    await canal.assertQueue('notificacao.mudanca-status', { durable: true });
+    await canal.bindQueue(
+      'notificacao.mudanca-status',
+      config.rabbitmq.exchange,
+      'pedido.status.alterado'
+    );
+  });
 
   const cobrancaRepositorio = new CobrancaRepositorioMysql({ pool });
   const gatewayPagamento = new GatewayPagamentoMock();
   const eventosPublicador = new EventosPublicadorRabbit({
     exchange: config.rabbitmq.exchange,
-    publicar: (...args) => canal.publish(...args),
+    publicar: (...args) => rabbit.publicar(...args),
   });
 
-  const cobrarPedido = new CobrarPedido({ cobrancaRepositorio, gatewayPagamento, eventosPublicador });
+  const cobrarPedido = new CobrarPedido({
+    cobrancaRepositorio,
+    gatewayPagamento,
+    eventosPublicador,
+  });
 
   const app = express();
   app.use(express.json());
@@ -36,6 +57,23 @@ async function criarApp() {
     res.status(status).json({ erro: erro.message });
   });
 
+  let executando = false;
+  const worker = setInterval(async () => {
+    if (executando) return;
+    executando = true;
+    try {
+      await cobrarPedido.republicarPendentes();
+    } catch (e) {
+      console.error('[pagamento] outbox:', e.message);
+    } finally {
+      executando = false;
+    }
+  }, 2000);
+  app.locals.fechar = async () => {
+    clearInterval(worker);
+    await rabbit.fechar();
+    await pool.end();
+  };
   return app;
 }
 

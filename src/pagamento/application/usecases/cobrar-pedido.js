@@ -1,32 +1,44 @@
 const Cobranca = require('../../domain/cobranca');
-
-// RF06 - Pagar pedido:
-// 1. pede autorizacao ao gateway (porta de saida, adaptavel - RNF02)
-// 2. grava a cobranca
-// 3. publica o resultado como evento (ADR-0003)
 class CobrarPedido {
   constructor({ cobrancaRepositorio, gatewayPagamento, eventosPublicador }) {
-    this.cobrancaRepositorio = cobrancaRepositorio;
-    this.gatewayPagamento = gatewayPagamento;
-    this.eventosPublicador = eventosPublicador;
-  }
-
-  async executar({ pedidoId, valor, simularRecusa = false }) {
-    const autorizacao = await this.gatewayPagamento.autorizar(valor, { simularRecusa });
-
-    const cobranca = new Cobranca({ pedidoId, valor, status: autorizacao.aprovado ? 'aprovada' : 'recusada' });
-    cobranca.id = await this.cobrancaRepositorio.inserir(cobranca);
-
-    const evento = autorizacao.aprovado ? 'pagamento.aprovado' : 'pagamento.recusado';
-    await this.eventosPublicador.publicar(evento, {
-      evento: autorizacao.aprovado ? 'PagamentoAprovado' : 'PagamentoRecusado',
-      pedidoId,
-      valor,
-      data: new Date().toISOString(),
+    Object.assign(this, {
+      cobrancaRepositorio,
+      gatewayPagamento,
+      eventosPublicador,
     });
-
-    return { cobrancaId: cobranca.id, status: autorizacao.aprovado ? 'aprovado' : 'recusado' };
+  }
+  async executar(dados) {
+    const { pedidoId, valor, simularRecusa = false } = dados || {};
+    const cobranca = new Cobranca({ pedidoId, valor });
+    if (typeof simularRecusa !== 'boolean')
+      throw Object.assign(new Error('simularRecusa deve ser booleano'), {
+        status: 400,
+      });
+    const salva = await this.cobrancaRepositorio.obterOuCriar(
+      cobranca,
+      simularRecusa,
+      async () => {
+        const autorizacao = await this.gatewayPagamento.autorizar(valor, {
+          simularRecusa,
+        });
+        if (typeof autorizacao?.aprovado !== 'boolean')
+          throw new Error('resposta invalida do gateway');
+        return autorizacao.aprovado;
+      }
+    );
+    // A outbox permanece pendente se o broker falhar. O worker repete a publicação.
+    try {
+      await this.republicarPendentes();
+    } catch (e) {
+      console.error('[pagamento] evento pendente na outbox:', e.message);
+    }
+    return {
+      cobrancaId: salva.id,
+      status: salva.status === 'aprovada' ? 'aprovado' : 'recusado',
+    };
+  }
+  async republicarPendentes() {
+    return this.cobrancaRepositorio.publicarPendentes(this.eventosPublicador);
   }
 }
-
 module.exports = CobrarPedido;

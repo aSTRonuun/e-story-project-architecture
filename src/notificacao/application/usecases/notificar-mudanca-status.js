@@ -1,33 +1,46 @@
-// RF08 - Reagir a mudanca de status do pedido (evento pedido.status.alterado).
-// Falha no envio NAO afeta o pedido (RF08) - aqui so registramos o envio.
-// Consumidor idempotente (entrega pode ser repetida).
 class NotificarMudancaStatus {
   constructor({ notificacaoRepositorio, canalEnvio }) {
-    this.notificacaoRepositorio = notificacaoRepositorio;
-    this.canalEnvio = canalEnvio;
-    this.processados = new Set();
+    Object.assign(this, { notificacaoRepositorio, canalEnvio });
   }
-
-  async executar({ evento, pedidoId, status }) {
-    const chave = `${evento}:${pedidoId}:${status}`;
-    if (this.processados.has(chave)) return;
-    this.processados.add(chave);
-
+  async executar(dados) {
+    const { evento, pedidoId, status, motivo } = dados || {};
+    if (
+      evento !== 'PedidoStatusAlterado' ||
+      !Number.isInteger(pedidoId) ||
+      pedidoId <= 0 ||
+      pedidoId > 2147483647 ||
+      ![
+        'Aguardando pagamento',
+        'Pago',
+        'Cancelado',
+        'Enviado',
+        'Entregue',
+      ].includes(status) ||
+      (motivo !== undefined &&
+        (typeof motivo !== 'string' || motivo.length > 120))
+    )
+      throw Object.assign(new Error('evento de status invalido'), {
+        status: 400,
+      });
+    // Chave de efeito estável: independe do timestamp e sobrevive ao reinício.
+    const chave = JSON.stringify([pedidoId, status, motivo || '']);
     const notificacao = {
       pedidoId,
       canal: 'email',
-      mensagem: `Seu pedido ${pedidoId} mudou para "${status}"`,
+      mensagem: `Seu pedido ${pedidoId} mudou para "${status}"${motivo ? `: ${motivo}` : ''}`,
       enviadoEm: new Date().toISOString(),
     };
-
-    try {
-      await this.canalEnvio.enviar(notificacao);
-      notificacao.id = await this.notificacaoRepositorio.inserir(notificacao);
-    } catch (erro) {
-      // RF08: falha no envio nao derruba o fluxo; registra e segue.
-      console.error(`[notificacao] falha ao enviar aviso do pedido ${pedidoId}:`, erro.message);
-    }
+    await this.notificacaoRepositorio.enviarUmaVez(
+      chave,
+      notificacao,
+      async () => {
+        const resultado = await this.canalEnvio.enviar({
+          ...notificacao,
+          chave,
+        });
+        if (!resultado?.ok) throw new Error('envio nao confirmado');
+      }
+    );
   }
 }
-
 module.exports = NotificarMudancaStatus;

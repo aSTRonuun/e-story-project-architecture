@@ -1,6 +1,6 @@
 // Composicao: monta as dependencias (injecao manual) e devolve o app + consumidor.
 const express = require('express');
-const amqplib = require('amqplib');
+const conectarRabbit = require('./rabbit');
 const mysql = require('mysql2/promise');
 const config = require('./config');
 const EstoqueRepositorioMysql = require('../adapters/out/estoque-repositorio-mysql');
@@ -10,15 +10,17 @@ const rotaEstoque = require('../adapters/in/rota-estoque');
 const consumidorResultadoPagamento = require('../adapters/in/consumidor-resultado-pagamento');
 
 async function criarApp() {
-  const pool = await mysql.createPool({ ...config.mysql, waitForConnections: true });
+  const pool = await mysql.createPool({
+    ...config.mysql,
+    waitForConnections: true,
+    timezone: 'Z',
+  });
   const estoqueRepositorio = new EstoqueRepositorioMysql({ pool });
 
   const reservarEstoque = new ReservarEstoque({ estoqueRepositorio });
-  const aplicarResultadoPagamento = new AplicarResultadoPagamento({ estoqueRepositorio });
-
-  const conexaoRabbit = await amqplib.connect(config.rabbitmq.url);
-  const canal = await conexaoRabbit.createChannel();
-  await canal.assertExchange(config.rabbitmq.exchange, 'topic', { durable: true });
+  const aplicarResultadoPagamento = new AplicarResultadoPagamento({
+    estoqueRepositorio,
+  });
 
   const app = express();
   app.use(express.json());
@@ -31,11 +33,17 @@ async function criarApp() {
     res.status(status).json({ erro: erro.message });
   });
 
-  await consumidorResultadoPagamento({
-    canal,
-    fila: config.rabbitmq.filaResultadoPagamento,
-    aplicarResultadoPagamento,
+  const rabbit = await conectarRabbit(config.rabbitmq, async (canal) => {
+    await consumidorResultadoPagamento({
+      canal,
+      fila: config.rabbitmq.filaResultadoPagamento,
+      aplicarResultadoPagamento,
+    });
   });
+  app.locals.fechar = async () => {
+    await rabbit.fechar();
+    await pool.end();
+  };
 
   return app;
 }

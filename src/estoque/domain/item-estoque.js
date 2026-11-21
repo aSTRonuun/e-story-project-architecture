@@ -14,7 +14,11 @@ class ItemEstoque {
 
   // RF10 / RNF03: nunca vende alem do disponivel.
   podeReservar(quantidade) {
-    return this.disponivel >= quantidade;
+    return (
+      Number.isInteger(quantidade) &&
+      quantidade > 0 &&
+      this.disponivel >= quantidade
+    );
   }
 
   reservar(quantidade) {
@@ -26,8 +30,23 @@ class ItemEstoque {
     this.reservado += quantidade;
   }
 
-  baixar(quantidade) { this.reservado -= quantidade; this.saldo -= quantidade; }
-  liberar(quantidade) { this.reservado -= quantidade; }
+  validarMovimento(quantidade) {
+    if (
+      !Number.isInteger(quantidade) ||
+      quantidade <= 0 ||
+      quantidade > this.reservado
+    )
+      throw new Error('quantidade invalida para movimentar reserva');
+  }
+  baixar(quantidade) {
+    this.validarMovimento(quantidade);
+    this.reservado -= quantidade;
+    this.saldo -= quantidade;
+  }
+  liberar(quantidade) {
+    this.validarMovimento(quantidade);
+    this.reservado -= quantidade;
+  }
 }
 
 module.exports = ItemEstoque;

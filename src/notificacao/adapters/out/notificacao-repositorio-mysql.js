@@ -8,18 +8,38 @@ class NotificacaoRepositorioMysql extends NotificacaoRepositorio {
     this.pool = pool;
   }
 
-  async inserir(notificacao) {
-    // MySQL TIMESTAMP nao aceita o formato ISO com T/Z; converte para "YYYY-MM-DD HH:MM:SS"
-    const enviadoEm = String(notificacao.enviadoEm).replace('T', ' ').replace('Z', '').slice(0, 19);
-    const [resultado] = await this.pool.execute(
-      'INSERT INTO notificacoes (pedido_id, canal, mensagem, enviado_em) VALUES (?, ?, ?, ?)',
-      [notificacao.pedidoId, notificacao.canal, notificacao.mensagem, enviadoEm]
-    );
-    return resultado.insertId;
+  async enviarUmaVez(chave, notificacao, enviar) {
+    const c = await this.pool.getConnection();
+    try {
+      await c.beginTransaction();
+      await c.execute(
+        'INSERT INTO notificacoes (chave,pedido_id,canal,mensagem) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE chave=chave',
+        [chave, notificacao.pedidoId, notificacao.canal, notificacao.mensagem]
+      );
+      const [[linha]] = await c.execute(
+        'SELECT * FROM notificacoes WHERE chave=? FOR UPDATE',
+        [chave]
+      );
+      if (!linha.enviado_em) {
+        await enviar();
+        await c.execute('UPDATE notificacoes SET enviado_em=? WHERE id=?', [
+          new Date(notificacao.enviadoEm),
+          linha.id,
+        ]);
+      }
+      await c.commit();
+    } catch (e) {
+      await c.rollback();
+      throw e;
+    } finally {
+      c.release();
+    }
   }
 
   async listar() {
-    const [linhas] = await this.pool.execute('SELECT * FROM notificacoes ORDER BY id DESC');
+    const [linhas] = await this.pool.execute(
+      'SELECT * FROM notificacoes WHERE enviado_em IS NOT NULL ORDER BY id DESC'
+    );
     return linhas.map(
       (l) =>
         new Notificacao({
