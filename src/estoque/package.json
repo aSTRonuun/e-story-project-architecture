@@ -3,13 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "description": "API de Estoque da Loja Virtual - saldo, reserva, baixa e liberacao (RF10)",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "dev": "tsc -p tsconfig.json --watch",
+    "dev:serve": "node --watch dist/server.js"
   },
   "dependencies": {
     "amqplib": "^0.10.5",
     "express": "^4.21.2",
     "mysql2": "^3.11.5"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.3",
+    "@types/node": "^20.17.0",
+    "@types/express": "^4.17.21",
+    "@types/amqplib": "^0.10.7"
   }
 }

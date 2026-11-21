@@ -1,10 +1,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const Reservar = require('../src/estoque/application/usecases/reservar-estoque');
-const Aplicar = require('../src/estoque/application/usecases/aplicar-resultado-pagamento');
-const Cobrar = require('../src/pagamento/application/usecases/cobrar-pedido');
-const Notificar = require('../src/notificacao/application/usecases/notificar-mudanca-status');
-const Item = require('../src/estoque/domain/item-estoque');
+const Reservar = require('../src/estoque/dist/application/usecases/reservar-estoque');
+const Aplicar = require('../src/estoque/dist/application/usecases/aplicar-resultado-pagamento');
+const Cobrar = require('../src/pagamento/dist/application/usecases/cobrar-pedido');
+const Notificar = require('../src/notificacao/dist/application/usecases/notificar-mudanca-status');
+const Item = require('../src/estoque/dist/domain/item-estoque');
 for (const dados of [
   null,
   {},
@@ -159,8 +159,8 @@ for (const servico of ['estoque', 'notificacao'])
       };
       const consumir = require(
         servico === 'estoque'
-          ? '../src/estoque/adapters/in/consumidor-resultado-pagamento'
-          : '../src/notificacao/adapters/in/consumidor-mudanca-status'
+          ? '../src/estoque/dist/adapters/in/consumidor-resultado-pagamento'
+          : '../src/notificacao/dist/adapters/in/consumidor-mudanca-status'
       );
       await consumir({
         canal,

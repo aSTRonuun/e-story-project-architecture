@@ -1,0 +1,405 @@
+MIGRAÇÃO DO BACKEND PARA TYPESCRIPT E INVERSÃO DE DEPENDÊNCIA
+Data: 21/11/2026. Relatório desta migração; RELATORIO-RAFAEL.txt permanece
+como registro histórico da implementação JavaScript anterior.
+
+1. ESTADO INICIAL E ANÁLISE
+
+Branch: feature/migracao-typescript-dip, preservada durante todo o trabalho.
+Git status inicial: árvore limpa, sem alterações locais a sobrescrever.
+Foi executado git fetch origin. HEAD e origin/main coincidiam no commit
+fe89833 (merge do PR #4). Comparação HEAD...origin/main: 0 commits exclusivos
+de cada lado e nenhuma diferença de conteúdo. Não foi necessário merge/rebase.
+Commits recentes incluíam 2b7b8be (implementação dos três serviços) e b477903
+(merge da base do backend). Não existiam fontes .ts/.tsx nem tsconfig.json.
+Nenhum dos cinco serviços havia sido migrado. Não havia interfaces TypeScript.
+
+Foram analisados README, src/AGENT.md, todos os cinco ADRs, Compose,
+package.json dos cinco serviços, suas fontes, Dockerfiles, quatro scripts
+SQL e os três testes .cjs existentes. A implementação existente já seguia
+SOA + Hexagonal e usava injeção manual por construtores. As antigas portas
+eram classes JavaScript com métodos que lançavam "nao implementado".
+Os casos de uso recebiam objetos sem verificação estática de contratos.
+O núcleo já não importava Express, MySQL ou RabbitMQ: essa separação foi mantida.
+
+2. MIGRAÇÃO E CONFIGURAÇÃO
+
+Migrados integralmente Gateway, Pedidos, Estoque, Pagamento e Notificação:
+domain, application/ports, application/usecases, adapters/in, adapters/out,
+infrastructure e server. O código de negócio foi adaptado, sem reimplementar
+fluxos ou alterar tabelas. Os scripts SQL permanecem inalterados.
+
+Cada serviço possui tsconfig.json independente, com:
+- strict: true, noEmitOnError: true e skipLibCheck: false;
+- target ES2022, module CommonJS, moduleResolution Node;
+- rootDir '.', outDir 'dist', declarations e source maps habilitados;
+- node_modules e dist excluídos das fontes.
+
+As dependências de execução existentes foram preservadas. Foram adicionados
+apenas TypeScript ~5.7.3 e definições @types/node 20, @types/express 4 e,
+nos quatro serviços com mensageria, @types/amqplib. Os cinco lockfiles foram
+atualizados. Não foram introduzidos ORM, framework de DI, ts-node ou tsx.
+
+Os imports são estáticos TypeScript, incluindo import type nas dependências
+que só existem na compilação. CommonJS foi preservado: export = mantém os
+require() dos testes .cjs compatíveis com as classes compiladas; módulos com
+exports nomeados continuam com exports nomeados. Interfaces não são usadas
+como classes-base e não são instanciadas em runtime.
+
+Não há any explícito nas fontes do backend. Entradas já validadas por Estoque,
+Pagamento e Notificação usam unknown com guardas de tipo. Resultados MySQL
+usam RowDataPacket, ResultSetHeader e tipos concretos de linha, restritos aos
+adaptadores. Erros capturados são tratados a partir de unknown, com funções
+puras de inspeção; o domínio continua sem dependências externas. Os DTOs REST
+e eventos são locais a cada serviço. Não foi criado pacote compartilhado nem
+import de domínio de um serviço por outro: preservam-se builds e fronteiras
+independentes. Os testes de integração verificam a compatibilidade dos JSONs.
+
+Scripts por serviço:
+- build: tsc -p tsconfig.json
+- typecheck: tsc -p tsconfig.json --noEmit
+- start: node dist/server.js
+- dev: tsc -p tsconfig.json --watch
+- dev:serve: node --watch dist/server.js
+
+Dockerfiles agora têm duas etapas: npm ci e compilação na etapa build;
+na imagem final, npm ci --omit=dev e cópia de dist. A execução é
+node dist/server.js, com Node 20. Cada .dockerignore exclui node_modules
+e dist para não copiar artefatos do host. Compose, portas e volumes foram
+preservados. Não foi removido nenhum volume nem interrompido outro projeto.
+
+Inventário das renomeações (conteúdo tipado e imports/exports atualizados):
+- src/estoque/adapters/in/consumidor-resultado-pagamento.js -> src/estoque/adapters/in/consumidor-resultado-pagamento.ts
+- src/estoque/adapters/in/rota-estoque.js -> src/estoque/adapters/in/rota-estoque.ts
+- src/estoque/adapters/out/estoque-repositorio-mysql.js -> src/estoque/adapters/out/estoque-repositorio-mysql.ts
+- src/estoque/application/ports/index.js -> src/estoque/application/ports/index.ts
+- src/estoque/application/usecases/aplicar-resultado-pagamento.js -> src/estoque/application/usecases/aplicar-resultado-pagamento.ts
+- src/estoque/application/usecases/reservar-estoque.js -> src/estoque/application/usecases/reservar-estoque.ts
+- src/estoque/domain/item-estoque.js -> src/estoque/domain/item-estoque.ts
+- src/estoque/domain/reserva.js -> src/estoque/domain/reserva.ts
+- src/estoque/infrastructure/config.js -> src/estoque/infrastructure/config.ts
+- src/estoque/infrastructure/container.js -> src/estoque/infrastructure/container.ts
+- src/estoque/infrastructure/rabbit.js -> src/estoque/infrastructure/rabbit.ts
+- src/estoque/server.js -> src/estoque/server.ts
+- src/gateway/adapters/in/rota-checkout.js -> src/gateway/adapters/in/rota-checkout.ts
+- src/gateway/adapters/out/pedidos-api-http.js -> src/gateway/adapters/out/pedidos-api-http.ts
+- src/gateway/application/ports/pedidos-api.js -> src/gateway/application/ports/pedidos-api.ts
+- src/gateway/application/usecases/encaminhar-checkout.js -> src/gateway/application/usecases/encaminhar-checkout.ts
+- src/gateway/domain/requisicao-checkout.js -> src/gateway/domain/requisicao-checkout.ts
+- src/gateway/infrastructure/config.js -> src/gateway/infrastructure/config.ts
+- src/gateway/infrastructure/container.js -> src/gateway/infrastructure/container.ts
+- src/gateway/server.js -> src/gateway/server.ts
+- src/notificacao/adapters/in/consumidor-mudanca-status.js -> src/notificacao/adapters/in/consumidor-mudanca-status.ts
+- src/notificacao/adapters/in/rota-notificacao.js -> src/notificacao/adapters/in/rota-notificacao.ts
+- src/notificacao/adapters/out/canal-envio-mock.js -> src/notificacao/adapters/out/canal-envio-mock.ts
+- src/notificacao/adapters/out/notificacao-repositorio-mysql.js -> src/notificacao/adapters/out/notificacao-repositorio-mysql.ts
+- src/notificacao/application/ports/index.js -> src/notificacao/application/ports/index.ts
+- src/notificacao/application/usecases/listar-notificacoes.js -> src/notificacao/application/usecases/listar-notificacoes.ts
+- src/notificacao/application/usecases/notificar-mudanca-status.js -> src/notificacao/application/usecases/notificar-mudanca-status.ts
+- src/notificacao/domain/notificacao.js -> src/notificacao/domain/notificacao.ts
+- src/notificacao/infrastructure/config.js -> src/notificacao/infrastructure/config.ts
+- src/notificacao/infrastructure/container.js -> src/notificacao/infrastructure/container.ts
+- src/notificacao/infrastructure/rabbit.js -> src/notificacao/infrastructure/rabbit.ts
+- src/notificacao/server.js -> src/notificacao/server.ts
+- src/pagamento/adapters/in/rota-pagamento.js -> src/pagamento/adapters/in/rota-pagamento.ts
+- src/pagamento/adapters/out/cobranca-repositorio-mysql.js -> src/pagamento/adapters/out/cobranca-repositorio-mysql.ts
+- src/pagamento/adapters/out/eventos-publicador-rabbit.js -> src/pagamento/adapters/out/eventos-publicador-rabbit.ts
+- src/pagamento/adapters/out/gateway-pagamento-mock.js -> src/pagamento/adapters/out/gateway-pagamento-mock.ts
+- src/pagamento/application/ports/index.js -> src/pagamento/application/ports/index.ts
+- src/pagamento/application/usecases/cobrar-pedido.js -> src/pagamento/application/usecases/cobrar-pedido.ts
+- src/pagamento/domain/cobranca.js -> src/pagamento/domain/cobranca.ts
+- src/pagamento/infrastructure/config.js -> src/pagamento/infrastructure/config.ts
+- src/pagamento/infrastructure/container.js -> src/pagamento/infrastructure/container.ts
+- src/pagamento/infrastructure/rabbit.js -> src/pagamento/infrastructure/rabbit.ts
+- src/pagamento/server.js -> src/pagamento/server.ts
+- src/pedidos/adapters/in/consumidor-resultado-pagamento.js -> src/pedidos/adapters/in/consumidor-resultado-pagamento.ts
+- src/pedidos/adapters/in/rota-pedidos.js -> src/pedidos/adapters/in/rota-pedidos.ts
+- src/pedidos/adapters/out/estoque-api-http.js -> src/pedidos/adapters/out/estoque-api-http.ts
+- src/pedidos/adapters/out/eventos-publicador-rabbit.js -> src/pedidos/adapters/out/eventos-publicador-rabbit.ts
+- src/pedidos/adapters/out/pagamento-api-http.js -> src/pedidos/adapters/out/pagamento-api-http.ts
+- src/pedidos/adapters/out/pedido-repositorio-mysql.js -> src/pedidos/adapters/out/pedido-repositorio-mysql.ts
+- src/pedidos/application/ports/index.js -> src/pedidos/application/ports/index.ts
+- src/pedidos/application/usecases/finalizar-compra.js -> src/pedidos/application/usecases/finalizar-compra.ts
+- src/pedidos/application/usecases/processar-resultado-pagamento.js -> src/pedidos/application/usecases/processar-resultado-pagamento.ts
+- src/pedidos/domain/pedido.js -> src/pedidos/domain/pedido.ts
+- src/pedidos/infrastructure/config.js -> src/pedidos/infrastructure/config.ts
+- src/pedidos/infrastructure/container.js -> src/pedidos/infrastructure/container.ts
+- src/pedidos/server.js -> src/pedidos/server.ts
+
+Arquivos adicionais criados:
+- package.json: comandos de instalação, build e testes na raiz, sem dependências.
+- scripts/backend.cjs: executa npm nos cinco serviços e interrompe em falha.
+- src/gateway/domain/erro.ts
+- src/pedidos/domain/erro.ts
+- src/estoque/domain/erro.ts
+- src/pagamento/domain/erro.ts
+- src/notificacao/domain/erro.ts
+  Esses cinco módulos fornecem funções puras para erros/guardas e mensagens.
+- src/gateway/tsconfig.json e src/gateway/.dockerignore
+- src/pedidos/tsconfig.json e src/pedidos/.dockerignore
+- src/estoque/tsconfig.json e src/estoque/.dockerignore
+- src/pagamento/tsconfig.json e src/pagamento/.dockerignore
+- src/notificacao/tsconfig.json e src/notificacao/.dockerignore
+- tests/migracao.cjs: regressão de Gateway/Pedidos e dependências arquiteturais.
+- tests/tipos/contratos.ts: substitutos válidos e expectativas negativas de tipos.
+- tests/tipos/tsconfig.json: verificação dos contratos com noEmit.
+- RELATORIO-TYPESCRIPT-DIP.txt: este relatório e mapeamento para UML.
+
+Outros arquivos modificados:
+- .gitignore: ignora dist e *.tsbuildinfo.
+- README.md: execução TypeScript, interfaces, desenvolvimento e testes.
+- src/gateway/{package.json,package-lock.json,Dockerfile}
+- src/pedidos/{package.json,package-lock.json,Dockerfile}
+- src/estoque/{package.json,package-lock.json,Dockerfile}
+- src/pagamento/{package.json,package-lock.json,Dockerfile}
+- src/notificacao/{package.json,package-lock.json,Dockerfile}
+- tests/unidade.cjs: os mesmos testes apontam agora para dist.
+- tests/integracao.cjs: imports dos adaptadores/casos de uso apontam para dist.
+Os testes .cjs foram preservados. Não há JavaScript fonte duplicado ao lado
+dos arquivos TypeScript; JavaScript de execução é gerado apenas em dist.
+
+3. INVERSÃO DE DEPENDÊNCIA
+
+Gateway (src/gateway/application/ports/pedidos-api.ts):
+- PedidosApi: implementada por PedidosApiHttp; EncaminharCheckout depende dela.
+- EncaminharCheckoutPorta: implementada por EncaminharCheckout; rotaCheckout
+  depende desta porta de entrada.
+- CheckoutEntrada, CheckoutNormalizado e RespostaHttp descrevem os DTOs.
+
+Pedidos (src/pedidos/application/ports/index.ts):
+- PedidoRepositorio: implementada por PedidoRepositorioMysql.
+- EstoqueApi: implementada por EstoqueApiHttp.
+- PagamentoApi: implementada por PagamentoApiHttp.
+- EventosPublicador: implementada por EventosPublicadorRabbit deste serviço.
+- FinalizarCompraPorta: implementada por FinalizarCompra.
+- ProcessarResultadoPagamentoPorta: implementada por ProcessarResultadoPagamento.
+FinalizarCompra depende de PedidoRepositorio, EstoqueApi e PagamentoApi;
+ProcessarResultadoPagamento depende de PedidoRepositorio e EventosPublicador.
+Rotas e consumidor recebem as respectivas portas de entrada.
+
+Estoque (src/estoque/application/ports/index.ts):
+- EstoqueRepositorio: implementada por EstoqueRepositorioMysql.
+- ReservarEstoquePorta: implementada por ReservarEstoque.
+- AplicarResultadoPagamentoPorta: implementada por AplicarResultadoPagamento.
+Os dois casos de uso dependem de EstoqueRepositorio. A rota recebe
+ReservarEstoquePorta; o consumidor recebe AplicarResultadoPagamentoPorta.
+As operações de persistência continuam representando unidades atômicas.
+
+Pagamento (src/pagamento/application/ports/index.ts):
+- GatewayPagamento: implementada por GatewayPagamentoMock.
+- EventosPublicador: implementada por EventosPublicadorRabbit deste serviço.
+- PersistenciaOutbox: contrato de publicarPendentes.
+- CobrancaRepositorio: estende PersistenciaOutbox, adicionando obterOuCriar;
+  implementada por CobrancaRepositorioMysql, incluindo a operação de outbox.
+- CobrarPedidoPorta: implementada por CobrarPedido; rotaPagamento recebe esta porta.
+CobrarPedido depende das abstrações CobrancaRepositorio, GatewayPagamento e
+EventosPublicador. A autorização continua injetada na unidade transacional
+como callback assíncrono, preservando a serialização já existente.
+
+Notificação (src/notificacao/application/ports/index.ts):
+- NotificacaoRepositorio: implementada por NotificacaoRepositorioMysql.
+- CanalEnvio: implementada por CanalEnvioMock.
+- NotificarMudancaStatusPorta: implementada por NotificarMudancaStatus.
+- ListarNotificacoesPorta: implementada por ListarNotificacoes.
+NotificarMudancaStatus depende de NotificacaoRepositorio e CanalEnvio;
+ListarNotificacoes depende de NotificacaoRepositorio. Consumidor e rota
+recebem as respectivas portas de entrada, sem conhecer classes concretas.
+
+A infraestrutura de cada serviço, em infrastructure/container.ts, instancia
+os adaptadores concretos e os entrega aos construtores. As propriedades
+privadas readonly dos casos de uso são tipadas pelas interfaces. TypeScript
+verifica a compatibilidade durante o build; os objetos reais são injetados
+normalmente em runtime. Nenhum contêiner de DI adicional foi necessário.
+As funções de rota/consumo continuam funções; não foram transformadas em
+classes artificiais apenas para a representação UML.
+
+4. ARQUITETURA E COMPATIBILIDADE
+
+SOA + Arquitetura Hexagonal preservadas. Domínio não depende de aplicação,
+adaptadores, infraestrutura ou bibliotecas; aplicação depende de domínio e
+portas. Express, mysql2 e amqplib ficam nos adaptadores/infraestrutura.
+
+A melhoria central é a formalização das abstrações: foram substituídas as
+classes-base provisórias e a tipagem implícita por interfaces implementadas
+explicitamente e dependências de construtor verificadas pelo compilador.
+Não foi necessário corrigir importações de infraestrutura no domínio, pois
+essa separação já estava correta. O comentário desatualizado de Pedidos sobre
+manter reserva após recusa foi alinhado ao ADR-0004, sem alterar o fluxo.
+Não foi introduzida Clean Architecture nem uma camada adicional.
+
+Contratos preservados:
+POST /checkout; POST /pedidos; POST /reservas; POST /cobrancas;
+GET /notificacoes. Os JSONs e códigos de resposta existentes permanecem.
+Exchange loja.eventos/topic; routing keys pagamento.aprovado,
+pagamento.recusado e pedido.status.alterado; campos evento, pedidoId,
+valor, status, motivo e data conforme o evento. As filas de resultados de
+Pedidos e Estoque continuam independentes.
+
+Garantias preservadas:
+- Reserva multitem atômica, UPDATE condicional, rollback e locks MySQL.
+- Agrupamento de itens e idempotência persistente por pedido.
+- Aprovação reduz saldo e reservado; recusa libera apenas reservado.
+- Cobrança e outbox na mesma transação, confirmação e republicação de pendências.
+- Notificação com chave única e confirmação após processamento.
+- Retry atrasado, fila durável de erro e reconexão em Estoque/Notificação/Pagamento.
+
+5. TESTES, DOCKER E LIMITES
+
+Executados:
+- Build TypeScript dos cinco serviços, todos aprovados com strict: true.
+- Build das cinco imagens Docker, todos aprovados; JavaScript compilado em execução.
+- 29 testes unitários anteriores, todos aprovados, sem exclusões.
+- 10 testes novos, todos aprovados: cinco verificações arquiteturais por serviço,
+  normalização/encaminhamento do Gateway, sequência do checkout, reserva recusada
+  sem cobrança e os dois resultados de pagamento processados por Pedidos.
+- Contratos TypeScript: adaptadores substitutos válidos compilam; cinco
+  @ts-expect-error confirmam que o compilador rejeita retorno incorreto do
+  gateway, routing key incompatível, evento desconhecido e aviso incompleto;
+  a quinta expectativa rejeita o envelope HTTP incorreto de Pedidos.
+- 19 cenários de integração existentes, todos aprovados. node:test conta
+  também o teste pai, exibindo 20 testes aprovados nessa suíte.
+- Reinício real dos três serviços finalizados: idempotência de estoque e
+  notificação e consulta persistida aprovadas.
+- Broker desligado: resposta síncrona e cobrança persistidas, outbox pendente.
+  Após religar: reconexão automática, publicação e baixa do estoque aprovadas.
+- Docker Compose config, inicialização das cinco APIs e revisão de whitespace.
+
+A integração verifica REST e RabbitMQ reais, incluindo checkout pelo Gateway,
+aprovação, recusa, baixa/liberação, notificações, repetição de chamadas/eventos,
+rollback multitem, disputa de 20 pedidos pela última unidade, falha simulada
+do gateway, falha de publicação e fila de erro. Nenhum teste foi removido para
+obter sucesso. Não houve alteração dos scripts SQL nem remoção de dados.
+
+Na primeira passagem do compilador, um UPDATE condicional de Estoque ainda
+estava com retorno genérico QueryResult. Foi tipado com ResultSetHeader;
+as cinco compilações passaram em seguida. A formatação deslocou uma expectativa negativa de tipos para a linha
+incorreta; a diretiva foi reposicionada junto à propriedade verificada.
+Não há erro de compilação pendente.
+
+Pendências anteriores preservadas, fora do escopo da migração:
+- Pedidos ainda não reconecta automaticamente após queda do broker. Foi
+  reiniciado após o teste controlado, restabelecendo seu consumidor.
+- Idempotência de Pedidos é em memória; seu publicador não tem outbox e seu
+  consumidor descarta falhas. Migrar para TypeScript não corrige essas políticas.
+- Gateway/Pedidos mantêm sua validação e tratamento HTTP originais. Tipos
+  TypeScript não substituem validação runtime de JSON não confiável.
+- Adaptadores HTTP de Pedidos preservam a leitura dos JSONs existentes;
+  seus DTOs tipados não são um novo protocolo de validação runtime.
+- Limites de envio externo versus commit e de idempotência de gateway real
+  continuam descritos em RELATORIO-RAFAEL.txt. Os provedores são mocks.
+- Não foram feitos testes prolongados de carga nem testes com provedores reais.
+
+O volume MySQL foi preservado. Fixtures de teste com ids altos permanecem,
+e checkouts aprovados consomem unidades do seed, como antes. Nenhuma fila
+foi purgada. Os contêineres pies-academia de outro projeto não foram afetados.
+Portas mantidas: 3000 a 3004, MySQL 3307, AMQP 5672 e painel RabbitMQ 15672.
+
+6. MAPEAMENTO PARA UML DE CLASSES (SEM GERAR DIAGRAMAS)
+
+Classes de domínio:
+- Gateway.RequisicaoCheckout: clienteId, itens e simularRecusa normalizados.
+- Pedidos.Pedido: itens, total, StatusPedido; criar, pagar e cancelar.
+- Estoque.ItemEstoque: saldo/reservado e operações de reserva/baixa/liberação.
+- Pagamento.Cobranca: pedidoId, valor e estado da cobrança; aprovar/recusar.
+- Notificacao.Notificacao: pedidoId, canal, mensagem e enviadoEm.
+ItemReserva, ItemPedido, Aviso e os eventos são tipos de dados/DTOs; não
+precisam ser confundidos com entidades que possuem identidade própria.
+
+Para cada serviço, incluir como <<interface>> as portas listadas na seção 3;
+incluir os casos de uso e adaptadores concretos correspondentes. Qualificar
+os nomes por serviço, porque EventosPublicador e EventosPublicadorRabbit
+existem em Pedidos e Pagamento e possuem contratos diferentes.
+
+Relações a representar:
+- Realização de interface: Gateway.PedidosApiHttp implementa Gateway.PedidosApi;
+  Pedidos.PedidoRepositorioMysql implementa PedidoRepositorio; Estoque.Estoque-
+  RepositorioMysql implementa EstoqueRepositorio; Pagamento.GatewayPagamentoMock
+  implementa GatewayPagamento; Notificacao.CanalEnvioMock implementa CanalEnvio;
+  e as demais realizações explicitadas por implements nas fontes.
+- Generalização entre interfaces: Pagamento.CobrancaRepositorio estende
+  Pagamento.PersistenciaOutbox. Não é herança entre classes concretas.
+- Dependência/associação injetada: cada caso de uso mantém referências privadas
+  readonly às portas enumeradas na seção 3. Desenhar a relação com a interface,
+  sem apontar o caso de uso diretamente ao adaptador concreto.
+- Criação/composição de objetos: infrastructure/container.ts é o composition
+  root, cria adaptadores e casos de uso. É uma função, não uma classe de domínio.
+  Usar nota/pacote ou dependência de criação; não inventar uma classe Container.
+- Domínio: Pedido contém sua coleção de ItemPedido; os demais casos de uso
+  criam/usam as entidades e DTOs locais. A transação/lock pertence ao adaptador
+  MySQL, não à entidade pura.
+- Adaptadores de entrada: rotas e consumidores são funções que dependem de
+  portas de entrada. Podem ser apresentados como operações de módulo/notas;
+  não inventar classes para funções que não existem no código.
+
+Arquivos para abrir no VS Code:
+- application/ports/*.ts: interfaces e assinaturas.
+- application/usecases/*.ts: implements e atributos de abstração injetados.
+- adapters/out/*.ts: realizações concretas.
+- domain/*.ts: entidades e tipos puros.
+- infrastructure/container.ts: criação e ligação dos objetos.
+- tests/tipos/contratos.ts: substituição e incompatibilidades rejeitadas.
+Não foi criada imagem ou diagrama nesta etapa.
+
+7. COMANDOS REPRODUZÍVEIS
+
+Pré-requisitos: Node 20, npm e Docker Compose.
+Na raiz do repositório:
+
+  npm run install:services
+  npm run build
+  npm run typecheck
+  npm test
+
+npm test executa build, verificação dos contratos de tipos e os 39 testes
+unitários/arquiteturais. Para executar cada etapa isolada:
+
+  npm run test:types
+  npm run test:unit
+
+Por serviço (substituir estoque pelo serviço desejado):
+
+  npm --prefix src/estoque ci
+  npm --prefix src/estoque run build
+  npm --prefix src/estoque run typecheck
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT=3307 npm --prefix src/estoque start
+
+Os demais valores vêm de infrastructure/config.ts, incluindo credenciais,
+RabbitMQ e URLs HTTP. Para desenvolvimento, primeiro fazer build; em um
+terminal executar npm --prefix src/estoque run dev e em outro executar
+npm --prefix src/estoque run dev:serve. Não executar a versão local e Docker
+na mesma porta simultaneamente.
+
+Aplicação completa em Docker:
+
+  docker compose config --quiet
+  docker compose up -d --build
+  docker compose ps
+
+Integração (fazer npm run build no host antes de montar o repositório):
+
+  docker compose run --rm --no-deps -v "$PWD:/projeto:ro" pagamento node /projeto/tests/integracao.cjs
+
+Recuperação real, somente no ambiente de demonstração (para o broker do projeto):
+
+  docker cp tests/recuperacao.cjs loja-pagamento:/tmp/recuperacao.cjs
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs preparar
+  docker compose restart estoque pagamento notificacao
+  # aguardar os servidores escutarem
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs reinicio
+  docker compose stop rabbitmq
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs offline
+  docker compose start rabbitmq
+  # aguardar RabbitMQ saudável e reconexão dos consumidores
+  docker compose exec -T pagamento node /tmp/recuperacao.cjs recuperado
+  docker compose restart pedidos
+
+Checkout aprovado/recusado e consulta:
+
+  curl -X POST http://localhost:3000/checkout -H 'content-type: application/json' -d '{"clienteId":"cliente-1","itens":[{"produtoId":1,"quantidade":2}]}'
+  curl -X POST http://localhost:3000/checkout -H 'content-type: application/json' -d '{"clienteId":"cliente-1","itens":[{"produtoId":1,"quantidade":1}],"simularRecusa":true}'
+  curl http://localhost:3004/notificacoes
+
+Aguardar consistência eventual antes da consulta. Não há necessidade de
+recriar o volume para migrar de JavaScript para TypeScript, pois o schema e
+os contratos de persistência não mudaram.
+
+Não foram realizados commit, push, merge, rebase, reset ou troca de branch.

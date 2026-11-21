@@ -145,11 +145,37 @@ Cada serviço segue o padrão hexagonal (ADR-0001): `domain/` (entidade), `appli
 
 ## Como executar
 
-Requisitos: Docker com Docker Compose.
+Requisitos: Docker com Docker Compose. O backend usa TypeScript com
+`strict: true`, compilado para CommonJS/Node.js 20. Cada serviço mantém seu
+próprio `tsconfig.json`, `package.json` e lockfile.
+
+Para compilar e testar localmente (Node.js 20 e npm):
 
 ```bash
-docker compose up -d        # sobe MySQL, RabbitMQ e as 5 APIs
-docker compose down -v      # para e apaga o volume (reexecuta o init do MySQL)
+npm run install:services   # npm ci em cada um dos cinco serviços
+npm run build              # gera src/<servico>/dist
+npm run typecheck          # verifica os cinco serviços sem gerar JavaScript
+npm test                   # build, contratos de tipos e testes unitários/arquiteturais
+```
+
+Para executar um serviço fora do Docker, configure as variáveis de ambiente
+de banco, broker e URLs conforme `infrastructure/config.ts`, depois execute
+`npm --prefix src/<servico> start`. Para desenvolvimento, use
+`npm --prefix src/<servico> run dev` para recompilar e, em outro terminal,
+`npm --prefix src/<servico> run dev:serve` para reiniciar o JavaScript compilado.
+O primeiro build deve existir antes de iniciar `dev:serve`.
+
+As portas são interfaces TypeScript em `application/ports/`. Os casos de uso
+recebem essas abstrações pelos construtores; os adaptadores concretos usam
+`implements`, e `infrastructure/container.ts` realiza a composição em runtime.
+Interfaces são apagadas na compilação e não funcionam como classes-base.
+
+Relatório da migração, inventário de arquivos, mapeamento para UML e comandos
+de integração: [RELATORIO-TYPESCRIPT-DIP.txt](RELATORIO-TYPESCRIPT-DIP.txt).
+
+```bash
+docker compose up -d --build # compila TypeScript e sobe as cinco APIs
+docker compose down          # para os serviços, preservando o volume MySQL
 ```
 
 Portas:

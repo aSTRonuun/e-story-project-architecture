@@ -233,7 +233,7 @@ test('integração com MySQL e RabbitMQ', async (t) => {
   });
   await test('falha de gateway reverte cobrança e outbox no MySQL', async () => {
     const Repo = require(
-      root + 'pagamento/adapters/out/cobranca-repositorio-mysql'
+      root + 'pagamento/dist/adapters/out/cobranca-repositorio-mysql'
     );
     await assert.rejects(
       new Repo({ pool }).obterOuCriar(
@@ -253,7 +253,7 @@ test('integração com MySQL e RabbitMQ', async (t) => {
   });
   await test('outbox conserva evento em falha de publicação e permite recuperação', async () => {
     const Repo = require(
-      root + 'pagamento/adapters/out/cobranca-repositorio-mysql'
+      root + 'pagamento/dist/adapters/out/cobranca-repositorio-mysql'
     );
     const repo = new Repo({ pool });
     // O worker do serviço pode concorrer; criamos e bloqueamos o lote no próprio callback.
@@ -316,10 +316,10 @@ test('integração com MySQL e RabbitMQ', async (t) => {
   });
   await test('falha de envio reverte registro e nova instância recupera sem duplicar', async () => {
     const Repo = require(
-      root + 'notificacao/adapters/out/notificacao-repositorio-mysql'
+      root + 'notificacao/dist/adapters/out/notificacao-repositorio-mysql'
     );
     const Caso = require(
-      root + 'notificacao/application/usecases/notificar-mudanca-status'
+      root + 'notificacao/dist/application/usecases/notificar-mudanca-status'
     );
     const repo = new Repo({ pool });
     const evento = {
