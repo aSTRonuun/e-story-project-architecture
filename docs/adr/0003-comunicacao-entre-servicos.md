@@ -58,7 +58,6 @@ Regras:
 
 ## Pontos em aberto
 
-- **Reserva de estoque** (na criação do pedido ou após o pagamento): ainda decide quem reage a quais eventos e o que acontece em falha ou expiração.
-- **Retorno do gateway de pagamento:** o contrato com o gateway simulado (síncrono ou por callback) ainda será decidido; o evento `Pagamento*` acima é publicado por Pagamento em qualquer caso.
-- **Autenticação** (própria ou delegada).
-- **Stack, escolha do broker e formato dos contratos** (OpenAPI para REST, esquema dos eventos).
+- ~~**Reserva de estoque**~~ e ~~**Retorno do gateway de pagamento**~~ — resolvidos nos [ADR-0004](0004-reserva-de-estoque.md) e [ADR-0005](0005-retorno-do-gateway.md).
+- **Autenticação** (própria ou delegada) — continua aberta; fora da demonstração.
+- ~~**Stack, escolha do broker e formato dos contratos**~~ — stack decidida no [README](../../README.md): Node.js + Express, RabbitMQ (exchange topic `loja.eventos`), MySQL e JSON nos contratos REST e nos eventos.

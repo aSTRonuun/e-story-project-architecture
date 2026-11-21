@@ -32,7 +32,7 @@ Com SOA decidido (ADR-0001), é preciso definir quais serviços existem, o que c
 ### Escopo
 
 - **Diagramas C4:** os 6 serviços aparecem em Contexto e Container.
-- **Implementação na demonstração:** **Pedidos, Estoque, Pagamento e Notificação**, mais um **Catálogo mínimo** com dados de exemplo, cobrindo o fluxo RF04 → RF05 → RF06 → RF08 com RF10 de suporte.
+- **Implementação na demonstração:** **Pedidos, Estoque, Pagamento e Notificação** (ADR-0003), mais o **API Gateway**. O **Catálogo** ficou fora da implementação: nome e preço do produto vêm de uma tabela seed, usada como mock pelo serviço de Pedidos (22/11).
 - **Identidade:** apenas no diagrama; a demonstração usa um cliente fixo ou token simulado.
 
 ## Consequências

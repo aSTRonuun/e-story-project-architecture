@@ -4,7 +4,7 @@ Abre a caixa "Loja Virtual" do [diagrama de Contexto](contexto.md): o front-end,
 
 Base nas decisões:
 
-- [ADR-0001](../adr/0001-estilo-arquitetural.md): SOA; cada serviço usa Clean + Hexagonal.
+- [ADR-0001](../adr/0001-estilo-arquitetural.md): SOA; cada serviço usa Arquitetura Hexagonal.
 - [ADR-0002](../adr/0002-fronteiras-dos-servicos.md): Catálogo, Estoque, Pedidos (com carrinho), Pagamento, Notificação e Identidade.
 - [ADR-0003](../adr/0003-comunicacao-entre-servicos.md): REST para comandos com resposta imediata, eventos para resultado do pagamento e notificações, API Gateway único.
 
@@ -22,16 +22,16 @@ C4Container
 
     System_Boundary(loja, "Loja Virtual") {
         Container(front, "Front-end Web", "A definir", "Interface de busca, carrinho, checkout, acompanhamento de pedidos e administração")
-        Container(gateway, "API Gateway", "A definir", "Ponto único de entrada. Valida o token, roteia e compõe produto + disponibilidade (RF02)")
+        Container(gateway, "API Gateway", "Node.js + Express", "Ponto único de entrada. Valida o token, roteia e compõe produto + disponibilidade (RF02)")
 
         Container(identidade, "Identidade", "A definir", "Cadastro, login e emissão de token (RF03). Fora da demonstração")
-        Container(catalogo, "Catálogo", "A definir", "Produtos, categorias e busca (RF01, RF02, RF09). Mínimo na demonstração")
-        Container(estoque, "Estoque", "A definir", "Saldo, reserva, baixa e liberação com controle de concorrência (RF10)")
-        Container(pedidos, "Pedidos", "A definir", "Carrinho, checkout e ciclo de vida dos pedidos (RF04, RF05, RF07)")
-        Container(pagamento, "Pagamento", "A definir", "Cobrança do pedido por porta de saída para o gateway (RF06)")
-        Container(notificacao, "Notificação", "A definir", "Reage a mudanças de status e envia ao cliente (RF08)")
+        Container(catalogo, "Catálogo", "A definir", "Produtos, categorias e busca (RF01, RF02, RF09). Fora da implementação na demonstração")
+        Container(estoque, "Estoque", "Node.js + Express", "Saldo, reserva, baixa e liberação com controle de concorrência (RF10)")
+        Container(pedidos, "Pedidos", "Node.js + Express", "Carrinho, checkout e ciclo de vida dos pedidos (RF04, RF05, RF07)")
+        Container(pagamento, "Pagamento", "Node.js + Express", "Cobrança do pedido por porta de saída para o gateway (RF06)")
+        Container(notificacao, "Notificação", "Node.js + Express", "Reage a mudanças de status e envia ao cliente (RF08)")
 
-        ContainerQueue(broker, "Broker de mensagens", "A definir", "Eventos entre serviços")
+        ContainerQueue(broker, "RabbitMQ", "RabbitMQ", "Eventos entre serviços")
     }
 
     System_Ext(pagamentoExt, "Gateway de Pagamento", "Sistema externo simulado. Autoriza ou recusa pagamentos")
@@ -77,7 +77,7 @@ flowchart LR
         Front["Front-end Web"]
         GW["API Gateway"]
 
-        subgraph SVC["Serviços (Clean + Hexagonal)"]
+        subgraph SVC["Serviços (Arquitetura Hexagonal)"]
             Identidade["Identidade"]
             Catalogo["Catálogo"]
             Estoque["Estoque"]
@@ -118,8 +118,8 @@ flowchart LR
 
 ## Observações
 
-- **Demonstração:** Pedidos, Estoque, Pagamento e Notificação são implementados. Catálogo é mínimo, com dados de exemplo, e Identidade fica só no diagrama (ADR-0002). Vale marcar isso na versão final do C4 para manter o código consistente com os diagramas (RNF05).
-- **Dados:** cada serviço é dono dos seus dados (ADR-0002), mas o desenho físico (um banco por serviço ou compartilhado) ainda está em aberto e por isso não há bancos no diagrama.
-- **Tecnologias:** front-end, gateway, serviços e broker estão como "A definir" até a escolha da stack.
-- **Quem consome o resultado do pagamento:** o diagrama mostra Pedidos (atualiza o status) e Estoque (baixa ou libera a reserva) consumindo o evento. Isso depende da decisão de reserva de estoque e pode mudar.
-- **Retorno do gateway externo:** a seta para o Gateway de Pagamento não mostra a volta da resposta, porque essa decisão ainda está em aberto.
+- **Demonstração:** gateway, Pedidos, Estoque, Pagamento e Notificação são implementados, cada um com um endpoint. Catálogo e Identidade ficam só no diagrama (ADR-0002): os dados do produto (nome e preço) vêm de uma tabela seed usada como mock pelo serviço de Pedidos. Vale marcar isso na versão final do C4 para manter o código consistente com os diagramas (RNF05).
+- **Dados:** cada serviço é dono dos seus dados (ADR-0002). Na demonstração há um único MySQL com tabelas por serviço, e cada serviço acessa apenas as suas.
+- **Tecnologias:** serviços e gateway em Node.js + Express, broker RabbitMQ, MySQL — tudo orquestrado pelo `docker-compose.yml` na raiz. O front-end permanece fora do escopo desta entrega.
+- **Quem consome o resultado do pagamento:** o diagrama mostra Pedidos (atualiza o status) e Estoque (baixa ou libera a reserva) consumindo o evento — comportamento definido no [ADR-0004](../adr/0004-reserva-de-estoque.md).
+- **Retorno do gateway externo:** o Pagamento responde síncrono ao Pedidos e publica o resultado como evento em qualquer caso ([ADR-0005](../adr/0005-retorno-do-gateway.md)).

@@ -1,0 +1,15 @@
+{
+  "name": "loja-pagamento",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de Pagamento da Loja Virtual - cobranca do pedido por porta de saida para o gateway (RF06)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5"
+  }
+}

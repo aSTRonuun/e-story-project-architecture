@@ -25,7 +25,7 @@ Loja virtual com catálogo, carrinho, pedidos e controle de estoque, com integra
 
 **Fora de escopo:** avaliações, recomendações, cupons, cálculo de frete real, devoluções e chat.
 
-**Estilo arquitetural:** SOA, com cada serviço desenhado em Clean Architecture + Arquitetura Hexagonal ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
+**Estilo arquitetural:** SOA, com cada serviço desenhado em Arquitetura Hexagonal ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
 
 ## Atores
 
@@ -115,42 +115,76 @@ RF01 a RF10 formam o mínimo viável. Para a apresentação, será implementado 
 
 Cada decisão deve virar um ADR em `docs/adr/`.
 
-1. **Estilo arquitetural: DECIDIDO** — SOA, com Clean + Hexagonal em cada serviço ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
-2. **Fronteiras dos serviços: DECIDIDO** — Catálogo, Estoque, Pedidos (inclui carrinho), Pagamento, Notificação e Identidade no C4; a demonstração implementa Pedidos, Estoque, Pagamento, Notificação e um Catálogo mínimo ([ADR-0002](docs/adr/0002-fronteiras-dos-servicos.md)).
+1. **Estilo arquitetural: DECIDIDO** — SOA, com Hexagonal em cada serviço ([ADR-0001](docs/adr/0001-estilo-arquitetural.md)).
+2. **Fronteiras dos serviços: DECIDIDO** — Catálogo, Estoque, Pedidos (inclui carrinho), Pagamento, Notificação e Identidade no C4; a demonstração implementa Pedidos, Estoque, Pagamento e Notificação ([ADR-0002](docs/adr/0002-fronteiras-dos-servicos.md)).
 3. **Comunicação entre serviços: DECIDIDO** — REST síncrono para comandos com resposta imediata e eventos para resultado de pagamento e notificações; API Gateway único como ponto de entrada ([ADR-0003](docs/adr/0003-comunicacao-entre-servicos.md)).
-4. **Reserva de estoque [A DEFINIR]:** na criação do pedido ou após o pagamento (RF05/RF06). É a decisão com maior impacto no desenho, agora também por envolver consistência entre serviços.
-5. **Retorno do gateway [A DEFINIR]:** síncrono ou por evento (RF06).
-6. **Autenticação [A DEFINIR]:** própria ou delegada (RF03).
+4. **Reserva de estoque: DECIDIDO** — na criação do pedido; baixa no pagamento aprovado e liberação no recusado ([ADR-0004](docs/adr/0004-reserva-de-estoque.md)).
+5. **Retorno do gateway: DECIDIDO** — resposta síncrona da cobrança + evento publicado sempre; o estado final muda só pelo evento ([ADR-0005](docs/adr/0005-retorno-do-gateway.md)).
+6. **Autenticação [A DEFINIR]:** própria ou delegada. Fora da demonstração (cliente fixo).
 
 ## Estrutura do repositório
-
-**[A DEFINIR]** Sugestão inicial:
 
 ```
 .
 ├── README.md
+├── docker-compose.yml      # sobe MySQL, RabbitMQ e as 5 APIs
 ├── docs/
-│   ├── adr/            # registros de decisões arquiteturais
-│   └── c4/             # workspace Structurizr (.dsl) e diagramas exportados
-└── src/                # código-fonte
+│   ├── adr/                # registros de decisões arquiteturais
+│   ├── c4/                 # diagramas C4 (Structurizr/Mermaid)
+│   └── use-cases/          # diagrama de casos de uso
+└── src/                    # backend (cada serviço em Node.js + Express)
+    ├── mysql/init/         # schema e seed do banco (executados na 1ª subida)
+    ├── gateway/            # API Gateway - POST /checkout
+    ├── pedidos/            # API de Pedido - POST /pedidos
+    ├── estoque/            # API de Estoque - POST /reservas
+    ├── pagamento/          # API de Pagamento - POST /cobrancas
+    └── notificacao/        # API de Notificação - GET /notificacoes
 ```
+
+Cada serviço segue o padrão hexagonal (ADR-0001): `domain/` (entidade), `application/` (caso de uso + portas), `adapters/in` e `adapters/out` (adaptadores de banco, RabbitMQ e demais APIs) e `infrastructure/` (configuração e composição).
 
 ## Como executar
 
-**[A DEFINIR]** Preencher após a escolha da stack.
+Requisitos: Docker com Docker Compose.
+
+```bash
+docker compose up -d        # sobe MySQL, RabbitMQ e as 5 APIs
+docker compose down -v      # para e apaga o volume (reexecuta o init do MySQL)
+```
+
+Portas:
+
+| Serviço | Porta | Endpoint |
+|---|---|---|
+| API Gateway | 3000 | `POST /checkout` |
+| Pedidos | 3001 | `POST /pedidos` |
+| Estoque | 3002 | `POST /reservas` |
+| Pagamento | 3003 | `POST /cobrancas` |
+| Notificação | 3004 | `GET /notificacoes` |
+| MySQL | 3307 | banco `loja_virtual` |
+| RabbitMQ (painel) | 15672 | login `loja` / `loja` |
+
+Exemplo de fluxo principal (dados mockados):
+
+```bash
+curl -X POST http://localhost:3000/checkout \
+  -H 'content-type: application/json' \
+  -d '{"clienteId":"cliente-1","itens":[{"produtoId":1,"quantidade":2}]}'
+# -> pedido criado e, em seguida, evento de pagamento o leva a "Pago"
+```
 
 ## Equipe e divisão de atividades
 
-**[A DEFINIR]**
-
 | Integrante | Responsabilidades |
 |---|---|
-| | |
+| Josias | Docker Compose e Dockerfiles, schema/seed do MySQL, gateway, serviço de Pedidos, integração e documentação |
+| Rafael | Serviços de Estoque, Pagamento e Notificação, dados mockados e roteiro da demonstração |
 
 ## Calendário
 
 | Data | Entrega |
 |---|---|
 | 16/11 e 17/11 | Equipe alinhada, aplicação e funcionalidades documentadas, estilo arquitetural selecionado, repositório criado, diagramas de Contexto e Container |
+| 22/11 | Revisão das entregas: backend rodando no Docker com dados mockados e apresentação |
 | 23/11 e 24/11 | Diagramas de Componentes e Código |
 | 01/12, 07/12 e 08/12 | Código rodando, conformidade com os diagramas e apresentação para a turma |
