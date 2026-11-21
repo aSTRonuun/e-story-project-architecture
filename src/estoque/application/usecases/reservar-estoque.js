@@ -1,5 +1,7 @@
 // RF10 - Reservar estoque para um pedido (chamada sincrona pelo servico de Pedidos).
-// TODO(RAFael): validar concorrência (RNF03) na persistência.
+// O nucleo valida as regras puras (ItemEstoque.podeReservar) e delega a gravacao
+// a porta EstoqueRepositorio.reservar, que e atomica no banco (RNF03/RF10):
+// dois pedidos simultaneos na ultima unidade nunca sao aceitos os dois.
 class ReservarEstoque {
   constructor({ estoqueRepositorio }) {
     this.estoqueRepositorio = estoqueRepositorio;
@@ -9,7 +11,7 @@ class ReservarEstoque {
     const itensEstoque = await this.estoqueRepositorio.buscarItens(itens.map((i) => i.produtoId));
     const porId = new Map(itensEstoque.map((i) => [i.produtoId, i]));
 
-    // valida tudo antes de gravar nada (evita reserva parcial)
+    // validacao de dominio antes de ir ao banco (mensagem clara, sem efeito colateral)
     for (const item of itens) {
       const estoque = porId.get(item.produtoId);
       if (!estoque || !estoque.podeReservar(item.quantidade)) {
@@ -17,13 +19,8 @@ class ReservarEstoque {
       }
     }
 
-    for (const item of itens) {
-      porId.get(item.produtoId).reservar(item.quantidade);
-      await this.estoqueRepositorio.salvarItem(porId.get(item.produtoId));
-    }
-    if (pedidoId) await this.estoqueRepositorio.gravarReserva(pedidoId, itens);
-
-    return { ok: true };
+    // gravacao atomica: o UPDATE condicional decide a concorrencia (RNF03)
+    return this.estoqueRepositorio.reservar(pedidoId, itens);
   }
 }
 

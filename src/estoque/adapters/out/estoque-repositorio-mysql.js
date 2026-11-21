@@ -2,7 +2,8 @@ const { EstoqueRepositorio } = require('../../application/ports');
 const ItemEstoque = require('../../domain/item-estoque');
 
 // Adaptador de saida: persistencia em MySQL.
-// TODO(RAFael): usar transacao/lock para a concorrência (RNF03).
+// A concorrencia (RNF03/RF10) e resolvida aqui, com UPDATE condicional:
+// o banco decide se ha saldo, nunca o read-then-write da aplicacao.
 class EstoqueRepositorioMysql extends EstoqueRepositorio {
   constructor({ pool }) {
     super();
@@ -21,22 +22,58 @@ class EstoqueRepositorioMysql extends EstoqueRepositorio {
     );
   }
 
-  async salvarItem(item) {
-    await this.pool.execute('UPDATE estoque SET saldo = ?, reservado = ? WHERE produto_id = ?', [
-      item.saldo,
-      item.reservado,
-      item.produtoId,
-    ]);
+  // Reserva atomica: transacao com UPDATE condicional por item.
+  // Se qualquer item nao tiver saldo disponivel, a transacao inteira e desfeita
+  // (sem reserva parcial) e a reserva do pedido nao e gravada.
+  async reservar(pedidoId, itens) {
+    const conexao = await this.pool.getConnection();
+    try {
+      await conexao.beginTransaction();
+      for (const item of itens) {
+        const [resultado] = await conexao.execute(
+          'UPDATE estoque SET reservado = reservado + ? WHERE produto_id = ? AND (saldo - reservado) >= ?',
+          [item.quantidade, item.produtoId, item.quantidade]
+        );
+        if (resultado.affectedRows === 0) {
+          await conexao.rollback();
+          return { ok: false, motivo: `estoque insuficiente do produto ${item.produtoId}` };
+        }
+      }
+      if (pedidoId) {
+        await conexao.execute('DELETE FROM reservas WHERE pedido_id = ?', [pedidoId]);
+        for (const item of itens) {
+          await conexao.execute(
+            'INSERT INTO reservas (pedido_id, produto_id, quantidade) VALUES (?, ?, ?)',
+            [pedidoId, item.produtoId, item.quantidade]
+          );
+        }
+      }
+      await conexao.commit();
+      return { ok: true };
+    } catch (erro) {
+      await conexao.rollback();
+      throw erro;
+    } finally {
+      conexao.release();
+    }
   }
 
-  async gravarReserva(pedidoId, itens) {
-    await this.pool.execute('DELETE FROM reservas WHERE pedido_id = ?', [pedidoId]);
-    for (const item of itens) {
-      await this.pool.execute(
-        'INSERT INTO reservas (pedido_id, produto_id, quantidade) VALUES (?, ?, ?)',
-        [pedidoId, item.produtoId, item.quantidade]
-      );
-    }
+  // Baixa definitiva no pagamento aprovado: so executa se a reserva ainda existe.
+  async baixar(produtoId, quantidade) {
+    const [resultado] = await this.pool.execute(
+      'UPDATE estoque SET saldo = saldo - ?, reservado = reservado - ? WHERE produto_id = ? AND reservado >= ? AND saldo >= ?',
+      [quantidade, quantidade, produtoId, quantidade, quantidade]
+    );
+    return resultado.affectedRows > 0;
+  }
+
+  // Liberacao da reserva no pagamento recusado: so zera o que foi reservado.
+  async liberar(produtoId, quantidade) {
+    const [resultado] = await this.pool.execute(
+      'UPDATE estoque SET reservado = reservado - ? WHERE produto_id = ? AND reservado >= ?',
+      [quantidade, produtoId, quantidade]
+    );
+    return resultado.affectedRows > 0;
   }
 
   async buscarReserva(pedidoId) {
