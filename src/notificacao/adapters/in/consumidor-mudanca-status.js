@@ -7,7 +7,7 @@ function consumidorMudancaStatus({ canal, fila, notificarMudancaStatus }) {
   return canal.consume(fila, async (msg) => {
     if (!msg) return;
     try {
-      await notificarMudancaStatus.executar(JSON.parse(msg.toString()));
+      await notificarMudancaStatus.executar(JSON.parse(msg.content.toString()));
       canal.ack(msg);
     } catch (erro) {
       console.error('[notificacao] falha ao processar evento:', erro.message);

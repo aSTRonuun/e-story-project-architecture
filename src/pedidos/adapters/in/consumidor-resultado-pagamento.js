@@ -9,7 +9,7 @@ function consumidorResultadoPagamento({ canal, fila, processarResultadoPagamento
   return canal.consume(fila, async (msg) => {
     if (!msg) return;
     try {
-      const conteudo = JSON.parse(msg.toString());
+      const conteudo = JSON.parse(msg.content.toString());
       await processarResultadoPagamento.executar(conteudo);
       canal.ack(msg);
     } catch (erro) {

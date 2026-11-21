@@ -9,9 +9,11 @@ class NotificacaoRepositorioMysql extends NotificacaoRepositorio {
   }
 
   async inserir(notificacao) {
+    // MySQL TIMESTAMP nao aceita o formato ISO com T/Z; converte para "YYYY-MM-DD HH:MM:SS"
+    const enviadoEm = String(notificacao.enviadoEm).replace('T', ' ').replace('Z', '').slice(0, 19);
     const [resultado] = await this.pool.execute(
       'INSERT INTO notificacoes (pedido_id, canal, mensagem, enviado_em) VALUES (?, ?, ?, ?)',
-      [notificacao.pedidoId, notificacao.canal, notificacao.mensagem, notificacao.enviadoEm]
+      [notificacao.pedidoId, notificacao.canal, notificacao.mensagem, enviadoEm]
     );
     return resultado.insertId;
   }

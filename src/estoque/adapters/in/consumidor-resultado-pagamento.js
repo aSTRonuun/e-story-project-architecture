@@ -8,7 +8,7 @@ function consumidorResultadoPagamento({ canal, fila, aplicarResultadoPagamento }
   return canal.consume(fila, async (msg) => {
     if (!msg) return;
     try {
-      await aplicarResultadoPagamento.executar(JSON.parse(msg.toString()));
+      await aplicarResultadoPagamento.executar(JSON.parse(msg.content.toString()));
       canal.ack(msg);
     } catch (erro) {
       console.error('[estoque] falha ao processar evento:', erro.message);
