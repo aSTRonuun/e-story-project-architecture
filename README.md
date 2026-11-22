@@ -128,11 +128,10 @@ Cada decisão deve virar um ADR em `docs/adr/`.
 .
 ├── README.md
 ├── docker-compose.yml      # sobe MySQL, RabbitMQ e as 5 APIs
-├── docs/
-│   ├── adr/                # registros de decisões arquiteturais
-│   ├── c4/                 # diagramas C4 (Structurizr/Mermaid)
-│   └── use-cases/          # diagrama de casos de uso
-└── src/                    # backend (cada serviço em Node.js + Express)
+├── docs/                   # [README](docs/README.md) - adr/, c4/, use-cases/
+├── scripts/                # [README](scripts/README.md) - backend.cjs (install/build/typecheck)
+├── tests/                  # [README](tests/README.md) - unidade, tipos, integração, recuperação
+└── src/                    # [README](src/README.md) - backend (cada serviço em Node.js + Express)
     ├── mysql/init/         # schema e seed do banco (executados na 1ª subida)
     ├── gateway/            # API Gateway - POST /checkout
     ├── pedidos/            # API de Pedido - POST /pedidos
