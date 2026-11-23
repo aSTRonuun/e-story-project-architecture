@@ -20,6 +20,13 @@ class PedidosApiHttp implements PedidosApi {
     });
     return { status: resposta.status, corpo: await resposta.json() };
   }
+
+  async buscarPedido(id: number, clienteId: string): Promise<RespostaHttp> {
+    const url = new URL(`${this.baseUrl}/pedidos/${id}`);
+    url.searchParams.set('clienteId', clienteId);
+    const resposta = await fetch(url);
+    return { status: resposta.status, corpo: await resposta.json() };
+  }
 }
 
 export = PedidosApiHttp;

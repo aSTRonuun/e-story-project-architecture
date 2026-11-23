@@ -14,7 +14,17 @@ export interface RespostaHttp {
 }
 export interface PedidosApi {
   criarPedido(requisicao: CheckoutNormalizado): Promise<RespostaHttp>;
+  buscarPedido(id: number, clienteId: string): Promise<RespostaHttp>;
+}
+export interface NotificacoesApi {
+  listarPorPedido(pedidoId: number): Promise<RespostaHttp>;
 }
 export interface EncaminharCheckoutPorta {
   executar(dados: CheckoutEntrada): Promise<RespostaHttp>;
+}
+export interface ConsultarPedidoPorta {
+  executar(id: number, clienteId: string): Promise<RespostaHttp>;
+}
+export interface ConsultarNotificacoesPorta {
+  executar(pedidoId: number, clienteId: string): Promise<RespostaHttp>;
 }

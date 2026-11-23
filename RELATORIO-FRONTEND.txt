@@ -1,0 +1,363 @@
+RELATORIO DO FRONT-END E GUIA DE TESTES
+======================================
+
+
+O trabalho atende principalmente aos seguintes requisitos:
+
+- RF05/RF06: finalizar a compra e solicitar o pagamento;
+- RF07: consultar e acompanhar o status de um pedido;
+- RF08: receber e exibir uma notificacao de mudanca de status;
+- RF04: adicionar itens a sacola, alterar quantidades e calcular o total.
+
+
+O QUE FOI IMPLEMENTADO, POR QUE E COMO
+--------------------------------------
+
+1. Interface da loja
+
+Foi criada a interface "miolo" usando React, TypeScript e Vite, com CSS
+proprio. A pagina apresenta produtos de demonstracao, busca por nome, filtro
+por categoria, sacola, controle de quantidades e total da compra.
+
+Intuito: dar ao usuario uma interface navegavel para os fluxos do projeto sem
+depender de um servico de catalogo ainda inexistente.
+
+2. Checkout real e modo de apresentacao
+
+No modo normal, o front envia os produtos e o identificador demonstrativo do
+cliente para POST /checkout no Gateway. O proxy do Vite encaminha as chamadas
+/api para o Gateway local.
+
+O checkout real está conectado ao fluxo de pagamento simulado já existente no
+backend: depois de receber POST /checkout, Pedidos chama o serviço de Pagamento
+por HTTP em POST /cobrancas, e o pagamento usa o GatewayPagamentoMock. Esse
+mock aprova normalmente ou recusa quando a opção de simular recusa é enviada.
+Não foi necessário alterar a pasta src/pagamento para integrar o front, pois
+esse endpoint e fluxo já estavam implementados.
+
+O "Modo apresentacao" simula um checkout no proprio front, sem chamar o
+backend. Tambem existe uma opcao para simular pagamento recusado no fluxo
+real. A sacola oferece selecao demonstrativa entre cartao de credito, Pix e
+boleto. Essa selecao nao e enviada ao backend, que ainda nao diferencia meios
+de pagamento; a chamada de checkout continua ocorrendo somente ao clicar em
+"finalizar pedido".
+
+Assim, a seleção de Cartão, Pix ou Boleto é apenas visual e não altera qual
+adaptador de pagamento do backend é executado. Adicionar produtos ou mudar
+essa seleção não inicia uma cobrança.
+
+Intuito: permitir demonstrar a interface isoladamente e, quando desejado,
+exercitar o fluxo real do backend.
+
+3. Acompanhamento e notificacoes (RF07/RF08)
+
+Depois de um checkout real, o front consulta o Gateway para buscar o status
+do pedido e as notificacoes relacionadas. As consultas sao repetidas
+periodicamente, com limite de tentativas, para acomodar a atualizacao
+assincrona entre servicos. O status e a notificacao sao exibidos na propria
+pagina.
+
+Intuito: ligar a interface aos requisitos RF07 e RF08 sem fazer o navegador
+acessar diretamente o RabbitMQ ou os servicos internos.
+
+4. Mensagens de erro
+
+Erros de checkout sao apresentados em um popup acessivel, com mensagens em
+linguagem simples. Ha mensagens para estoque insuficiente, produto nao
+encontrado, dados invalidos, indisponibilidade dos servicos e falha de
+conexao. Quando o checkout falha, os itens permanecem na sacola para revisao
+ou nova tentativa. O popup pode ser fechado por botao, clicando fora ou
+pressionando Escape.
+
+Intuito: explicar o problema sem criar novas telas e preservar o trabalho
+feito pelo usuario na sacola.
+
+5. Rotas de consulta no backend
+
+Foram adicionadas consultas de pedido e notificacoes atraves do Gateway.
+Pedidos retorna os dados de um pedido e seus itens, verificando o
+clienteId informado. Para buscar notificacoes, o Gateway primeiro consulta o
+pedido para verificar se pertence ao cliente informado; so depois encaminha
+a consulta ao servico de Notificacao.
+
+Intuito: permitir que o front acompanhe pedidos e notificacoes passando pelo
+Gateway, mantendo a separacao entre os servicos.
+
+
+ARQUIVOS NOVOS
+--------------
+
+Front-end:
+
+- frontend/index.html
+  Documento HTML de entrada do Vite e metadados da pagina.
+
+- frontend/package.json e frontend/package-lock.json
+  Dependencias e comandos de desenvolvimento, build e testes do front-end.
+
+- frontend/tsconfig.json
+  Configuracao do compilador TypeScript.
+
+- frontend/vite.config.ts
+  Configura o React, o servidor Vite e o proxy /api para o Gateway local.
+
+- frontend/src/App.tsx
+  Componente principal: catalogo demonstrativo, sacola, checkout,
+  acompanhamento do pedido e exibicao de notificacoes.
+
+- frontend/src/main.tsx
+  Ponto de entrada que monta o React na pagina.
+
+- frontend/src/styles.css
+  Estilos, identidade visual e adaptacao da interface a diferentes telas.
+
+- frontend/src/checkout-error.ts
+  Converte respostas e falhas tecnicas do checkout em mensagens amigaveis.
+
+- frontend/src/App.test.tsx
+  Testes automatizados das interacoes e estados principais da interface.
+
+- frontend/src/checkout-error.test.ts
+  Testes das mensagens associadas aos diferentes tipos de erro.
+
+- frontend/src/test-setup.ts
+  Configuracao do ambiente DOM simulado usado pelos testes do React.
+
+Gateway e servicos:
+
+- src/gateway/adapters/in/rota-consultas.ts
+  Rotas HTTP do Gateway para consulta de pedidos e notificacoes.
+
+- src/gateway/application/usecases/consultar-pedido.ts
+  Caso de uso que encaminha a consulta do pedido ao servico de Pedidos.
+
+- src/gateway/application/usecases/consultar-notificacoes.ts
+  Caso de uso que valida a relacao pedido/cliente antes de consultar
+  notificacoes.
+
+- src/gateway/adapters/out/notificacoes-api-http.ts
+  Adaptador HTTP do Gateway para o servico de Notificacao.
+
+- src/pedidos/application/usecases/consultar-pedido.ts
+  Busca e normaliza os dados do pedido e dos seus itens.
+
+
+ARQUIVOS EXISTENTES MODIFICADOS
+-------------------------------
+
+Backend:
+
+- src/gateway/adapters/out/pedidos-api-http.ts
+  Acrescenta a consulta de pedido no adaptador HTTP para Pedidos.
+
+- src/gateway/application/ports/pedidos-api.ts
+  Define os contratos usados pelos casos de uso de consulta.
+
+- src/gateway/infrastructure/config.ts
+  Adiciona configuracao necessaria para a comunicacao com Notificacao.
+
+- src/gateway/infrastructure/container.ts
+  Registra e conecta os novos casos de uso e adaptadores do Gateway.
+
+- src/pedidos/adapters/in/rota-pedidos.ts
+  Expõe a rota de consulta de pedido.
+
+- src/pedidos/adapters/out/pedido-repositorio-mysql.ts
+  Busca o pedido e seus itens no MySQL, filtrando pelo cliente.
+
+- src/pedidos/application/ports/index.ts
+  Adiciona os contratos necessarios para consultar pedidos.
+
+- src/pedidos/infrastructure/container.ts
+  Registra o caso de uso de consulta de pedidos.
+
+- src/notificacao/adapters/in/rota-notificacao.ts
+  Aceita filtro por pedido na consulta de notificacoes.
+
+- src/notificacao/adapters/out/notificacao-repositorio-mysql.ts
+  Busca notificacoes relacionadas a um pedido.
+
+- src/notificacao/application/ports/index.ts
+  Atualiza o contrato do repositorio para suportar o filtro por pedido.
+
+- src/notificacao/application/usecases/listar-notificacoes.ts
+  Encaminha o filtro de pedido ao repositorio.
+
+Testes:
+
+- tests/migracao.cjs
+  Acrescenta testes unitarios para consulta de pedidos, normalizacao de dados,
+  encaminhamento pelo Gateway e validacao antes de consultar notificacoes.
+
+- tests/integracao.cjs
+  Acrescenta cenarios ponta a ponta para checkout aprovado e recusado,
+  consulta de pedido/notificacao e rejeicao de outro cliente.
+
+Documentacao:
+
+- README.md
+- src/README.md
+- tests/README.md
+- docs/adr/0003-comunicacao-entre-servicos.md
+- docs/apresentacao-backend.md
+- docs/c4/containers.md
+
+Esses documentos foram atualizados para explicar o front-end, as rotas,
+a comunicacao via Gateway, os limites da integracao e como executar os testes.
+
+
+LIMITES DA IMPLEMENTACAO
+-----------------------
+
+- O catalogo e a disponibilidade da vitrine sao dados mockados; nao existe
+  integracao com um servico de catalogo.
+- Nao foi implementado um servico de identidade ou autenticacao.
+- O clienteId e derivado do nome digitado e pode ser falsificado. A verificacao
+  de pedido/cliente demonstra o fluxo, mas nao substitui autenticacao e
+  autorizacao adequadas para producao.
+- A integracao real adicionada para o front e checkout, consulta de pedidos e
+  notificacoes via Gateway; outros requisitos sem endpoints implementados
+  continuam fora da integracao.
+- A disponibilidade exibida na interface e mockada e pode divergir do estoque
+  real. Por isso, um erro de estoque pode ser mais facil de demonstrar nos
+  testes automatizados que manualmente pela interface.
+
+
+GUIA DE TESTES
+==============
+
+Os comandos abaixo partem da raiz do repositorio, exceto quando indicado.
+
+1. TESTES AUTOMATIZADOS DO FRONT-END
+------------------------------------
+
+Execute:
+
+  npm test --prefix frontend
+
+O comando roda os testes de frontend com respostas HTTP simuladas. Os testes
+validam:
+
+- busca por texto e filtro por categoria;
+- adicionar itens, alterar quantidades e atualizar o total;
+- envio do checkout e exibicao da resposta;
+- popup para erro de estoque e preservacao da sacola;
+- tentativa novamente e fechamento do popup com Escape;
+- mensagens para dados invalidos e falha de conexao;
+- pagamento recusado;
+- consulta do pedido e exibicao da notificacao.
+
+Resultado verificado durante a preparacao deste relatorio: 15 testes passaram,
+sem falhas. Como os endpoints sao simulados nesses testes, eles nao confirmam
+que o backend esta disponivel.
+
+Para verificar compilacao TypeScript e build de producao:
+
+  npm run build --prefix frontend
+
+Resultado verificado durante a preparacao deste relatorio: build concluido
+com sucesso.
+
+2. TESTES AUTOMATIZADOS DO BACKEND
+----------------------------------
+
+Para executar o teste unitario indicado:
+
+  npm run build
+  node tests/unidade.cjs
+
+O build e necessario porque tests/unidade.cjs importa os arquivos compilados
+dos servicos dentro de src/*/dist.
+
+Para executar testes unitarios e verificacoes arquiteturais:
+
+  npm run build
+  npm run test:unit
+
+Para executar a suite local completa, incluindo build e verificacao de tipos:
+
+  npm test
+
+3. TESTES DE INTEGRACAO COM DOCKER
+----------------------------------
+
+Estes testes usam os servicos Docker, MySQL, RabbitMQ e as APIs reais.
+
+Compile e inicie/reconstrua o stack:
+
+  npm run build
+  docker compose up -d --build
+
+Execute a suite de integracao:
+
+  docker compose run --rm --no-deps -v "$PWD:/projeto:ro" pagamento node /projeto/tests/integracao.cjs
+
+Os cenarios incluem estoque, pagamento, notificacao, checkout aprovado e
+recusado, consulta de pedidos e notificacoes pelo Gateway e rejeicao de
+consulta com outro clienteId.
+
+Resultado verificado anteriormente: 20 testes passaram, sem falhas.
+
+4. TESTES MANUAIS NO NAVEGADOR
+------------------------------
+
+Pre-requisitos: Node.js/npm e Docker com Docker Compose disponiveis.
+
+Passo 1: em um terminal, a partir da raiz do projeto, inicie os servicos:
+
+  docker compose up -d --build
+
+Passo 2: em outro terminal, inicie o front:
+
+  npm run dev --prefix frontend
+
+Passo 3: abra no navegador o endereco exibido pelo Vite, normalmente:
+
+  http://localhost:5173
+
+Passo 4: testar a interface:
+
+- Busca e categoria: pesquise um produto e altere os filtros de categoria.
+- Sacola: adicione produtos, aumente/diminua quantidades e confira o total.
+- Modo apresentacao: marque "Modo apresentacao" e finalize. O front simula
+  o resultado sem chamar o backend; nao havera consulta real ou notificacao.
+- Checkout real: desmarque o modo apresentacao, adicione um produto e finalize.
+  Confira o pedido e aguarde a atualizacao do status/notificacao na pagina.
+- Forma de pagamento: na sacola, escolha Cartao de credito, Pix ou Boleto.
+  A escolha e apenas demonstrativa; ela nao e enviada ao backend. A chamada
+  real para o Gateway acontece somente ao clicar em "finalizar pedido".
+- Pagamento recusado: antes de finalizar o checkout real, marque
+  "Simular pagamento recusado" e confira o resultado indicado na interface.
+- Falha de conexao: com produtos na sacola, pare temporariamente o Gateway:
+
+    docker compose stop gateway
+
+  Tente finalizar para ver o popup de conexao. Depois restaure o Gateway:
+
+    docker compose start gateway
+
+- Estoque insuficiente: a vitrine usa estoque mockado, portanto o valor exibido
+  pode nao coincidir com o backend. O teste automatizado do frontend cobre o
+  popup e a preservacao da sacola. Para reproduzi-lo manualmente, o estoque real
+  precisa estar abaixo da quantidade enviada pelo checkout.
+
+Ao terminar, para encerrar os servicos:
+
+  docker compose down
+
+O comando preserva o volume do MySQL.
+
+
+RESULTADOS DE VALIDACAO REGISTRADOS
+-----------------------------------
+
+- Testes automatizados do front-end: 15 passaram.
+- Build de producao do front-end: concluido com sucesso.
+- Testes de integracao: 20 passaram em execucao anterior contra o stack Docker
+  reconstruido.
+- git diff --check: sem erros de whitespace na verificacao anterior.
+
+Os testes do front, backend e integracao verificam partes diferentes: os testes
+do front simulam respostas HTTP; os unitarios verificam regras isoladas; os
+testes de integracao exercitam os servicos reais no Docker; o teste manual
+confirma a experiencia completa no navegador.

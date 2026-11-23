@@ -11,7 +11,7 @@ export interface NotificacaoRepositorio {
     notificacao: Aviso,
     enviar: () => Promise<void>
   ): Promise<void>;
-  listar(): Promise<Notificacao[]>;
+  listar(pedidoId?: number): Promise<Notificacao[]>;
 }
 export interface CanalEnvio {
   enviar(notificacao: Aviso & { chave?: string }): Promise<{ ok: boolean }>;
@@ -20,5 +20,5 @@ export interface NotificarMudancaStatusPorta {
   executar(dados: unknown): Promise<void>;
 }
 export interface ListarNotificacoesPorta {
-  executar(): Promise<Notificacao[]>;
+  executar(pedidoId?: number): Promise<Notificacao[]>;
 }

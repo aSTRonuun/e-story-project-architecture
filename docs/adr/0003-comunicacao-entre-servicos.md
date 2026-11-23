@@ -32,7 +32,18 @@ Regras:
 
 ### 2. API Gateway único como ponto de entrada
 
-- O front-end fala apenas com o **API Gateway**, que valida o token emitido por Identidade, roteia para os serviços e **compõe a visão "produto + disponibilidade" (RF02)**, juntando dados do Catálogo e do Estoque.
+- O front-end fala apenas com o **API Gateway**, que, no desenho completo, valida o token emitido por Identidade e roteia para os serviços. Na demonstração, Identidade não está implementado; o front usa `clienteId` como identificador de demonstração.
+- O Gateway encaminha o checkout, consulta pedidos em Pedidos (RF07) e consulta notificações em Notificação (RF08). A consulta de notificações valida primeiro se o pedido pertence ao `clienteId` informado.
+- A composição da visão "produto + disponibilidade" (RF02), juntando dados do Catálogo e do Estoque, continua prevista no desenho, mas fora da implementação demonstrativa.
+
+Contratos de leitura implementados para a demonstração:
+
+| Cliente → Gateway | Gateway → serviço | Uso |
+|---|---|---|
+| `GET /pedidos/:id?clienteId=...` | `GET /pedidos/:id?clienteId=...` | RF07: consulta status, itens e total do pedido |
+| `GET /notificacoes?pedidoId=...&clienteId=...` | valida pedido em Pedidos e chama `GET /notificacoes?pedidoId=...` | RF08: consulta apenas notificações daquele pedido |
+
+O `clienteId` é um identificador de demonstração e não substitui autenticação. Identidade e emissão/validação de token continuam fora do escopo atual.
 - Assim o Catálogo não depende do Estoque e a validação de token não se repete em cada serviço.
 - O Gateway não contém regra de negócio; só roteamento, autenticação e composição de leitura.
 
@@ -48,6 +59,7 @@ Regras:
 - Dois estilos de integração aumentam a quantidade de contratos e de adaptadores a implementar e testar.
 - O estado do pedido passa a ser **eventualmente consistente** com o resultado do pagamento e o estoque confirmado; é preciso tratar mensagens repetidas, perdidas ou fora de ordem.
 - O API Gateway é um ponto único de falha e de entrada; na demonstração isso é aceito.
+- Como Identidade/autenticação não está implementada na demonstração, o `clienteId` passado pelo front não é prova de identidade e não deve ser tratado como controle de acesso de produção.
 
 ## Alternativas consideradas
 

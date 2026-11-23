@@ -55,10 +55,16 @@ class NotificacaoRepositorioMysql implements NotificacaoRepositorio {
     }
   }
 
-  async listar() {
-    const [linhas] = await this.pool.execute<NotificacaoLinha[]>(
-      'SELECT * FROM notificacoes WHERE enviado_em IS NOT NULL ORDER BY id DESC'
-    );
+  async listar(pedidoId?: number) {
+    const [linhas] =
+      pedidoId === undefined
+        ? await this.pool.execute<NotificacaoLinha[]>(
+            'SELECT * FROM notificacoes WHERE enviado_em IS NOT NULL ORDER BY id DESC'
+          )
+        : await this.pool.execute<NotificacaoLinha[]>(
+            'SELECT * FROM notificacoes WHERE enviado_em IS NOT NULL AND pedido_id = ? ORDER BY id DESC',
+            [pedidoId]
+          );
     return linhas.map(
       (l) =>
         new Notificacao({

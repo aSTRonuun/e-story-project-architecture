@@ -3,6 +3,7 @@ const config = {
   porta: Number(process.env.PORT || 3000),
   urls: {
     pedidos: process.env.PEDIDOS_URL || 'http://localhost:3001',
+    notificacao: process.env.NOTIFICACAO_URL || 'http://localhost:3004',
   },
 };
 

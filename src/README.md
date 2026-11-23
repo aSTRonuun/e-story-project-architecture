@@ -7,11 +7,11 @@ com `tsconfig.json`, `package.json` e lockfile próprios. Padrão hexagonal:
 
 | Pasta | Serviço | Porta | Endpoint |
 |---|---|---|---|
-| `gateway/` | API Gateway | 3000 | `POST /checkout` |
-| `pedidos/` | Pedidos | 3001 | `POST /pedidos` |
+| `gateway/` | API Gateway | 3000 | `POST /checkout`, `GET /pedidos/:id`, `GET /notificacoes` |
+| `pedidos/` | Pedidos | 3001 | `POST /pedidos`, `GET /pedidos/:id?clienteId=...` |
 | `estoque/` | Estoque | 3002 | `POST /reservas` |
 | `pagamento/` | Pagamento | 3003 | `POST /cobrancas` |
-| `notificacao/` | Notificação | 3004 | `GET /notificacoes` |
+| `notificacao/` | Notificação | 3004 | `GET /notificacoes?pedidoId=...` |
 | `mysql/init/` | schema + seed (executados na 1ª subida do MySQL) | — | — |
 
 ## Rodar tudo (Docker, a partir da raiz do repositório)

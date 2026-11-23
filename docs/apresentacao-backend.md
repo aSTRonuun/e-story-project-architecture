@@ -5,7 +5,7 @@
 
 ## 1. O que foi construído
 
-Cinco APIs independentes (SOA), cada uma com **um único endpoint**, cada serviço desenhado em **Arquitetura Hexagonal** (ADR-0001): o domínio não depende de framework, banco nem de outros serviços — tudo entra e sai por **adaptadores**.
+Cinco APIs independentes (SOA), cada serviço desenhado em **Arquitetura Hexagonal** (ADR-0001): o domínio não depende de framework, banco nem de outros serviços — tudo entra e sai por **adaptadores**.
 
 ```
 src/<servico>/
@@ -19,11 +19,11 @@ src/<servico>/
 
 | API | Porta | Endpoint | RF |
 |---|---|---|---|
-| API Gateway | 3000 | `POST /checkout` | ponto de entrada (ADR-0003) |
-| Pedidos | 3001 | `POST /pedidos` | RF04, RF05, RF07 |
+| API Gateway | 3000 | `POST /checkout`, `GET /pedidos/:id`, `GET /notificacoes` | ponto de entrada (ADR-0003) |
+| Pedidos | 3001 | `POST /pedidos`, `GET /pedidos/:id?clienteId=...` | RF04, RF05, RF07 |
 | Estoque | 3002 | `POST /reservas` | RF10 (apoia RF05/RF06) |
 | Pagamento | 3003 | `POST /cobrancas` | RF06 |
-| Notificação | 3004 | `GET /notificacoes` | RF08 |
+| Notificação | 3004 | `GET /notificacoes?pedidoId=...` | RF08 |
 
 ## 2. Comunicação (ADR-0003)
 
@@ -80,7 +80,7 @@ curl -X POST http://localhost:3000/checkout \
 7. **Caminhos de falha**:
    - produto sem saldo → `HTTP 409` e **o pedido não é criado** (RF05);
    - `"simularRecusa": true` → cobrança `recusada`, pedido segue "Aguardando pagamento" e a **reserva é liberada**.
-8. **Notificação**: `GET http://localhost:3004/notificacoes` mostrando os avisos registrados (RF08).
+8. **Front-end (RF07/RF08)**: acompanhar o status e receber no pop-up do site a notificação real consultada pelo Gateway. A API de Notificação continua disponível para inspeção técnica em `GET http://localhost:3004/notificacoes`.
 
 ## 6. Conclusões
 

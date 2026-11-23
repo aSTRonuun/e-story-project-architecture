@@ -14,6 +14,17 @@ npm run test:unit   # unidade.cjs + migracao.cjs
 - `tipos/tsconfig.json` + `tipos/contratos.ts` — compilam os contratos
   de tipos dos serviços.
 
+## Front-end
+
+Os testes de interação do React ficam em `frontend/src/*.test.ts(x)` e usam
+Node `test`, jsdom, React Testing Library e `tsx`. As respostas HTTP são
+simuladas; esses testes validam a interface, não os serviços reais.
+
+```bash
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
 ## Integração (exige o stack no ar: `docker compose up -d --build`)
 
 ```bash

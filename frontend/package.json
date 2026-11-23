@@ -1,0 +1,29 @@
+{
+  "name": "loja-virtual-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "tsx --test ./src/checkout-error.test.ts ./src/App.test.tsx"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.10.5",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "jsdom": "^25.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.4.6"
+  }
+}

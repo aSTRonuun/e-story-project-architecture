@@ -57,6 +57,23 @@ class PedidoRepositorioMysql implements PedidoRepositorio {
     return { ...linha, itens };
   }
 
+  async buscarPorIdDoCliente(
+    id: number,
+    clienteId: string
+  ): Promise<PedidoPersistido | null> {
+    const [linhas] = await this.pool.execute<PedidoLinha[]>(
+      'SELECT * FROM pedidos WHERE id = ? AND cliente_id = ?',
+      [id, clienteId]
+    );
+    if (linhas.length === 0) return null;
+    const linha = linhas[0];
+    const [itens] = await this.pool.execute<ItemLinha[]>(
+      'SELECT * FROM pedido_itens WHERE pedido_id = ?',
+      [id]
+    );
+    return { ...linha, itens };
+  }
+
   async atualizarStatus(id: number, status: StatusPedido) {
     await this.pool.execute<ResultSetHeader>(
       'UPDATE pedidos SET status = ? WHERE id = ?',

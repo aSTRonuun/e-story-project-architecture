@@ -177,15 +177,55 @@ docker compose up -d --build # compila TypeScript e sobe as cinco APIs
 docker compose down          # para os serviços, preservando o volume MySQL
 ```
 
+### Front-end demonstrativo
+
+O front-end em `frontend/` usa React, TypeScript e Vite. A vitrine e a
+disponibilidade são mocks alinhados aos produtos do seed. O checkout chama o
+Gateway real (`POST /checkout`) por um proxy local. Após criar um pedido, o front
+consulta o status (`GET /pedidos/:id`) e as notificações (`GET /notificacoes`)
+pelo Gateway, apresentando atualizações na própria página. Falhas como estoque
+insuficiente ou dados inválidos aparecem em um popup acessível; a sacola é
+mantida para revisão ou nova tentativa. **Modo apresentação** continua
+disponível para simular o checkout sem backend.
+
+Em um terminal, suba os serviços:
+
+```bash
+docker compose up -d --build
+```
+
+Em outro terminal, inicie o front-end:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abra o endereço mostrado pelo Vite (por padrão `http://localhost:5173`). Para
+apresentar apenas a interface, sem subir o backend, ative **Modo apresentação**
+na sacola. Nesse modo não há atualização de status ou notificação real.
+
+Testes automatizados da interface, com respostas HTTP simuladas:
+
+```bash
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Eles cobrem busca/filtros, sacola e total, contrato de checkout, respostas de
+erro (incluindo reserva recusada), tentativa novamente, pagamento recusado e
+falha de conexão. Não substituem a execução de integração com os serviços.
+
 Portas:
 
 | Serviço | Porta | Endpoint |
 |---|---|---|
-| API Gateway | 3000 | `POST /checkout` |
-| Pedidos | 3001 | `POST /pedidos` |
+| API Gateway | 3000 | `POST /checkout`, `GET /pedidos/:id`, `GET /notificacoes` |
+| Pedidos | 3001 | `POST /pedidos`, `GET /pedidos/:id?clienteId=...` |
 | Estoque | 3002 | `POST /reservas` |
 | Pagamento | 3003 | `POST /cobrancas` |
-| Notificação | 3004 | `GET /notificacoes` |
+| Notificação | 3004 | `GET /notificacoes?pedidoId=...` |
 | MySQL | 3307 | banco `loja_virtual` |
 | RabbitMQ (painel) | 15672 | login `loja` / `loja` |
 
