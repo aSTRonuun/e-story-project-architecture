@@ -405,6 +405,29 @@ test('integração com MySQL e RabbitMQ', async (t) => {
         (await sql('SELECT status FROM pedidos WHERE id=?', [id]))[0].status,
         recusa ? 'Aguardando pagamento' : 'Pago'
       );
+      const pedidoConsultado = await fetch(
+        `http://gateway:3000/pedidos/${id}?clienteId=teste-rafael`
+      );
+      assert.equal(pedidoConsultado.status, 200);
+      assert.equal(
+        (await pedidoConsultado.json()).status,
+        recusa ? 'Aguardando pagamento' : 'Pago'
+      );
+      const pedidoDeOutroCliente = await fetch(
+        `http://gateway:3000/pedidos/${id}?clienteId=outro-cliente`
+      );
+      assert.equal(pedidoDeOutroCliente.status, 404);
+      const respostaNotificacoes = await fetch(
+        `http://gateway:3000/notificacoes?pedidoId=${id}&clienteId=teste-rafael`
+      );
+      assert.equal(respostaNotificacoes.status, 200);
+      const { notificacoes } = await respostaNotificacoes.json();
+      assert.equal(notificacoes.length, 1);
+      assert.equal(notificacoes[0].pedidoId, id);
+      const notificacoesDeOutroCliente = await fetch(
+        `http://gateway:3000/notificacoes?pedidoId=${id}&clienteId=outro-cliente`
+      );
+      assert.equal(notificacoesDeOutroCliente.status, 404);
       assert.deepEqual(
         (
           await sql('SELECT saldo,reservado FROM estoque WHERE produto_id=5')

@@ -34,9 +34,30 @@ export interface PedidoRepositorio {
   inserir(pedido: Pedido): Promise<number>;
   inserirItens(pedidoId: number, itens: ItemPedido[]): Promise<void>;
   buscarPorId(id: number): Promise<PedidoPersistido | null>;
+  buscarPorIdDoCliente(
+    id: number,
+    clienteId: string
+  ): Promise<PedidoPersistido | null>;
   atualizarStatus(id: number, status: StatusPedido): Promise<void>;
   buscarProdutos(ids: number[]): Promise<ProdutoMock[]>;
   remover(pedidoId: number): Promise<void>;
+}
+export interface PedidoConsultado {
+  pedidoId: number;
+  clienteId: string;
+  status: StatusPedido;
+  total: number;
+  criadoEm: Date;
+  atualizadoEm: Date;
+  itens: {
+    produtoId: number;
+    nome: string;
+    precoUnitario: number;
+    quantidade: number;
+  }[];
+}
+export interface ConsultarPedidoPorta {
+  executar(id: number, clienteId: string): Promise<PedidoConsultado>;
 }
 export type ResultadoReserva = { ok: true } | { ok: false; motivo?: string };
 export interface EstoqueApi {

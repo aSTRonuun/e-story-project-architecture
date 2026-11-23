@@ -11,8 +11,8 @@ class ListarNotificacoes implements ListarNotificacoesPorta {
     this.notificacaoRepositorio = notificacaoRepositorio;
   }
 
-  async executar() {
-    return this.notificacaoRepositorio.listar();
+  async executar(pedidoId?: number) {
+    return this.notificacaoRepositorio.listar(pedidoId);
   }
 }
 

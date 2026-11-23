@@ -10,6 +10,7 @@ import EstoqueApiHttp = require('../adapters/out/estoque-api-http');
 import PagamentoApiHttp = require('../adapters/out/pagamento-api-http');
 import EventosPublicadorRabbit = require('../adapters/out/eventos-publicador-rabbit');
 import FinalizarCompra = require('../application/usecases/finalizar-compra');
+import ConsultarPedido = require('../application/usecases/consultar-pedido');
 import ProcessarResultadoPagamento = require('../application/usecases/processar-resultado-pagamento');
 import rotaPedidos = require('../adapters/in/rota-pedidos');
 import consumidorResultadoPagamento = require('../adapters/in/consumidor-resultado-pagamento');
@@ -39,6 +40,7 @@ async function criarApp() {
     estoqueApi,
     pagamentoApi,
   });
+  const consultarPedido = new ConsultarPedido({ pedidoRepositorio });
   const processarResultadoPagamento = new ProcessarResultadoPagamento({
     pedidoRepositorio,
     eventosPublicador,
@@ -46,7 +48,7 @@ async function criarApp() {
 
   const app = express();
   app.use(express.json());
-  app.use(rotaPedidos({ finalizarCompra }));
+  app.use(rotaPedidos({ finalizarCompra, consultarPedido }));
 
   // Handler unico de erros: mapeia erro de dominio (erro.status) para resposta HTTP.
   // eslint-disable-next-line no-unused-vars

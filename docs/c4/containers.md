@@ -22,7 +22,7 @@ C4Container
 
     System_Boundary(loja, "Loja Virtual") {
         Container(front, "Front-end Web", "A definir", "Interface de busca, carrinho, checkout, acompanhamento de pedidos e administração")
-        Container(gateway, "API Gateway", "Node.js + Express", "Ponto único de entrada. Valida o token, roteia e compõe produto + disponibilidade (RF02)")
+        Container(gateway, "API Gateway", "Node.js + Express", "Ponto único de entrada. Encaminha checkout, consulta pedidos/notificações; autenticação e composição de catálogo ficam fora da demo")
 
         Container(identidade, "Identidade", "A definir", "Cadastro, login e emissão de token (RF03). Fora da demonstração")
         Container(catalogo, "Catálogo", "A definir", "Produtos, categorias e busca (RF01, RF02, RF09). Fora da implementação na demonstração")
@@ -46,6 +46,7 @@ C4Container
     Rel(gateway, catalogo, "Busca produtos e detalhes", "REST")
     Rel(gateway, estoque, "Consulta disponibilidade e ajusta estoque", "REST")
     Rel(gateway, pedidos, "Carrinho, checkout e consulta de pedidos", "REST")
+    Rel(gateway, notificacao, "Consulta notificações do pedido após validar o cliente em Pedidos", "REST")
 
     Rel(pedidos, estoque, "Reserva estoque", "REST")
     Rel(pedidos, catalogo, "Lê nome e preço do produto", "REST")
@@ -100,7 +101,8 @@ flowchart LR
     GW -->|"valida token"| Identidade
     GW -->|"busca produtos"| Catalogo
     GW -->|"disponibilidade e ajuste"| Estoque
-    GW -->|"carrinho e pedidos"| Pedidos
+    GW -->|"checkout e consulta de pedidos"| Pedidos
+    GW -->|"consulta notificação após validar pedido"| Notificacao
 
     Pedidos -->|"reserva estoque"| Estoque
     Pedidos -->|"lê nome e preço"| Catalogo
@@ -118,8 +120,9 @@ flowchart LR
 
 ## Observações
 
-- **Demonstração:** gateway, Pedidos, Estoque, Pagamento e Notificação são implementados, cada um com um endpoint. Catálogo e Identidade ficam só no diagrama (ADR-0002): os dados do produto (nome e preço) vêm de uma tabela seed usada como mock pelo serviço de Pedidos. Vale marcar isso na versão final do C4 para manter o código consistente com os diagramas (RNF05).
+- **Demonstração:** gateway, Pedidos, Estoque, Pagamento e Notificação são implementados. Gateway expõe checkout e consultas; Pedidos expõe checkout e leitura de pedidos; Notificação expõe consulta geral e por pedido. Catálogo e Identidade ficam só no diagrama (ADR-0002): os dados do produto (nome e preço) vêm de uma tabela seed usada como mock pelo serviço de Pedidos.
 - **Dados:** cada serviço é dono dos seus dados (ADR-0002). Na demonstração há um único MySQL com tabelas por serviço, e cada serviço acessa apenas as suas.
-- **Tecnologias:** serviços e gateway em Node.js + Express, broker RabbitMQ, MySQL — tudo orquestrado pelo `docker-compose.yml` na raiz. O front-end permanece fora do escopo desta entrega.
+- **Tecnologias:** serviços e gateway em Node.js + Express, broker RabbitMQ, MySQL — tudo orquestrado pelo `docker-compose.yml` na raiz. O front-end demonstrativo chama somente o Gateway; catálogo/disponibilidade seguem mockados.
+- **Identidade:** `clienteId` é um identificador de demonstração enviado pelo front; sem o serviço de Identidade, as consultas por cliente não constituem autenticação real.
 - **Quem consome o resultado do pagamento:** o diagrama mostra Pedidos (atualiza o status) e Estoque (baixa ou libera a reserva) consumindo o evento — comportamento definido no [ADR-0004](../adr/0004-reserva-de-estoque.md).
 - **Retorno do gateway externo:** o Pagamento responde síncrono ao Pedidos e publica o resultado como evento em qualquer caso ([ADR-0005](../adr/0005-retorno-do-gateway.md)).
