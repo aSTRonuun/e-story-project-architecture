@@ -1,0 +1,19 @@
+# Structurizr local para visualizar os diagramas C4 (workspace.dsl desta pasta)
+# Doc: https://docs.structurizr.com/local
+# Uso (dentro de docs/c4): docker compose up
+# Acesso: http://localhost:8080
+# Sem relação com o docker-compose.yml da raiz, que sobe a aplicação.
+
+services:
+  structurizr:
+    image: structurizr/structurizr:2026.10.26
+    container_name: loja-structurizr
+    command: local
+    ports:
+      - "8080:8080"
+    environment:
+      # recarrega os diagramas sozinho quando o workspace.dsl é salvo (ms)
+      STRUCTURIZR_AUTOREFRESHINTERVAL: "2000"
+    volumes:
+      # a pasta toda é o "data directory": o Structurizr lê o workspace.dsl daqui
+      - ./:/usr/local/structurizr
