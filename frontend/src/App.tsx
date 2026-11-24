@@ -452,7 +452,7 @@ function App() {
 
       <header className="site-header">
         <a className="wordmark" href="#inicio" aria-label="miolo, início">
-          miolo<span>.</span>
+          E-Story<span>.</span>
         </a>
         <nav className="main-nav" aria-label="Navegação principal">
           <a href="#colecao">A coleção</a>
@@ -863,7 +863,7 @@ function App() {
       )}
 
       <footer className="site-footer">
-        <a className="wordmark footer-wordmark" href="#inicio">miolo<span>.</span></a>
+        <a className="wordmark footer-wordmark" href="#inicio">E-Story<span>.</span></a>
         <span>Um projeto de loja virtual em modo demonstração.</span>
         <a href="#inicio">voltar ao topo ↑</a>
       </footer>
