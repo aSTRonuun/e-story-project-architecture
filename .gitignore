@@ -5,3 +5,6 @@ npm-debug.log*
 
 dist/
 *.tsbuildinfo
+
+# Structurizr local (dados gerados a partir de docs/c4/workspace.dsl)
+docs/c4/.structurizr/
